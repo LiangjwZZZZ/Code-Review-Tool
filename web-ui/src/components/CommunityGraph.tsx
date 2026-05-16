@@ -1,0 +1,82 @@
+import { useEffect, useRef } from 'react';
+import { Network, type Edge } from 'vis-network';
+import { DataSet } from 'vis-data';
+import type { ImpactItem } from '../types';
+
+interface CommunityGraphProps {
+  impacts: ImpactItem[];
+}
+
+const GROUP_COLORS = [
+  '#3498db', '#e74c3c', '#2ecc71', '#f39c12',
+  '#9b59b6', '#1abc9c', '#e67e22', '#34495e',
+];
+
+export default function CommunityGraph({ impacts }: CommunityGraphProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current || impacts.length === 0) return;
+
+    const nodes: Array<{ id: string; label: string; color: string; group: string }> = [];
+    const edges: Edge[] = [];
+
+    impacts.forEach((item, idx) => {
+      const color = GROUP_COLORS[idx % GROUP_COLORS.length];
+      nodes.push({
+        id: `sym-${item.symbol}`,
+        label: `${item.symbol}\n[${item.risk}]`,
+        color,
+        group: `g-${idx}`,
+      });
+
+      item.affected_processes.slice(0, 8).forEach((proc, pi) => {
+        const procId = `proc-${idx}-${pi}`;
+        const shortLabel = proc.length > 35 ? proc.substring(0, 32) + '...' : proc;
+        nodes.push({
+          id: procId,
+          label: shortLabel,
+          color: '#ecf0f1',
+          group: `g-${idx}`,
+        });
+        edges.push({ from: `sym-${item.symbol}`, to: procId });
+      });
+    });
+
+    const network = new Network(
+      containerRef.current,
+      { nodes: new DataSet(nodes), edges: new DataSet<Edge>(edges) },
+      {
+        layout: { improvedLayout: true },
+        physics: { stabilization: { iterations: 100 } },
+        groups: impacts.reduce<Record<string, { shape: string; color: string }>>((acc, _, i) => {
+          acc[`g-${i}`] = { shape: 'box', color: GROUP_COLORS[i % GROUP_COLORS.length] };
+          return acc;
+        }, {}),
+        interaction: { hover: true },
+      },
+    );
+
+    return () => network.destroy();
+  }, [impacts]);
+
+  if (impacts.length === 0) return null;
+
+  return (
+    <div style={{ marginTop: 32 }}>
+      <h2 style={{ marginBottom: 8 }}>Community / Process Clusters</h2>
+      <p style={{ fontSize: 13, color: '#7f8c8d', marginBottom: 8 }}>
+        Each group (color) represents a changed symbol. Leaf nodes are affected execution processes.
+      </p>
+      <div
+        ref={containerRef}
+        style={{
+          height: 350,
+          border: '1px solid #ddd',
+          borderRadius: 8,
+          backgroundColor: '#fafafa',
+        }}
+      />
+    </div>
+  );
+}

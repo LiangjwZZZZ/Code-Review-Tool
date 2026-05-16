@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Node
+node_modules/
+web-ui/node_modules/
+web-ui/dist/
+
+# Build output
+review/web/static/
+package-lock.json
+
+# Generated output
+graphify-out/
+
+# Planning files (auto-generated)
+findings.md
+progress.md
+task_plan.md
+
+# Editor / IDE
+.DS_Store
+.obsidian/
+.agents/
+.claude/
+
+# Config / secrets lock
+skills-lock.json
+
+# Database (contains analysis data)
+*.db
+
+# Docs (design specs, etc)
+docs/
