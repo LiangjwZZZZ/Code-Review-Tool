@@ -105,7 +105,7 @@ def api_analyze(commit_hash: str, repo: str = Query(".", description="Repository
     try:
         report = generate_report(commit_hash, quick=quick, repo_path=repo)
         save_report(report)
-        mode_label = "quick" if quick else "deep" if not quick else "default"
+        mode_label = "quick" if quick else "default"
         _log_event(f"分析完成 commit={commit_hash[:12]} mode={mode_label} risk={report.risk_level}")
         return JSONResponse({"status": "ok", "risk_level": report.risk_level, "commit_hash": report.commit_hash})
     except Exception as e:
@@ -159,38 +159,6 @@ def api_get_report_formatted(commit_hash: str):
         for f in report.findings:
             lines.append(f"- [{f.severity}] {f.category}: {f.message}")
     return JSONResponse({"markdown": "\n".join(lines)})
-
-
-@app.get("/api/reports/{commit_hash}/graphify")
-def api_graphify_report(commit_hash: str, repo: str = Query(".")):
-    """Generate and return graphify code tree HTML for a commit."""
-    from fastapi.responses import FileResponse
-
-    repo_path = Path(repo).resolve()
-    graphify_out = repo_path / "graphify-out"
-    graphify_out.mkdir(parents=True, exist_ok=True)
-
-    try:
-        subprocess.run(
-            ["graphify", "update", str(repo_path)],
-            capture_output=True, text=True, timeout=120,
-        )
-    except subprocess.TimeoutExpired:
-        pass
-
-    tree_html = graphify_out / "GRAPH_TREE.html"
-    try:
-        subprocess.run(
-            ["graphify", "tree", "--graph", str(graphify_out / "graph.json"),
-             "--output", str(tree_html), "--label", repo_path.name],
-            capture_output=True, text=True, timeout=60,
-        )
-    except subprocess.TimeoutExpired:
-        pass
-
-    if tree_html.exists():
-        return FileResponse(str(tree_html), media_type="text/html")
-    return JSONResponse({"error": "graphify output not generated"}, status_code=500)
 
 
 # ── Launcher API ──────────────────────────────────────────────────────────────

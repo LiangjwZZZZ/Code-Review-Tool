@@ -12,14 +12,13 @@ app = typer.Typer(name="review")
 
 @app.callback()
 def callback():
-    """review — Analyze a commit's impact on existing code using GitNexus + Graphify."""
+    """review — Analyze a commit's impact on existing code using GitNexus."""
 
 
 @app.command()
 def check(
     commit: str = typer.Argument(..., help="Commit hash to review"),
     quick: bool = typer.Option(False, "--quick", help="Skip LLM review, only impact analysis"),
-    deep: bool = typer.Option(False, "--deep", help="Also build Graphify code tree visualization"),
     repo: str = typer.Option(".", "--repo", help="Repository path"),
 ):
     """Review a specific commit."""
@@ -29,10 +28,6 @@ def check(
     save_report(report)
 
     _print_summary(report)
-
-    if deep:
-        typer.echo("\n  Building Graphify code tree...")
-        _run_graphify(repo)
 
     _print_urls("127.0.0.1", 9090, f"/report/{commit}")
     typer.echo(f"  Run: review web {commit}")
@@ -165,35 +160,3 @@ def _print_summary(report):
         typer.echo(f"\n  Modules affected: {', '.join(sorted(modules))}")
 
     typer.echo(f"\n  {report.summary}")
-
-
-def _run_graphify(repo_path: str):
-    """Build Graphify code tree and generate HTML visualization."""
-    import subprocess
-    import time
-    from pathlib import Path
-    import typer
-
-    graphify_out = Path(repo_path) / "graphify-out"
-
-    typer.echo("    Updating code graph...")
-    result = subprocess.run(
-        ["graphify", "update", repo_path],
-        capture_output=True, text=True, timeout=120,
-    )
-    if result.returncode != 0:
-        typer.echo(f"    Graph update failed: {result.stderr.strip() or 'see graphify output'}")
-        return
-
-    tree_html = graphify_out / "GRAPH_TREE.html"
-    typer.echo("    Generating tree visualization...")
-    subprocess.run(
-        ["graphify", "tree", "--graph", str(graphify_out / "graph.json"),
-         "--output", str(tree_html), "--label", Path(repo_path).name],
-        capture_output=True, text=True, timeout=60,
-    )
-
-    if tree_html.exists():
-        typer.echo(f"    Code tree: file://{tree_html}")
-    else:
-        typer.echo("    Tree visualization not generated (try: graphify extract --no-cluster)")

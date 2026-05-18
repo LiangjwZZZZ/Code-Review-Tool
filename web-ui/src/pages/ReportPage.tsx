@@ -14,11 +14,10 @@ const containerStyle: React.CSSProperties = {
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
 };
 
-type AnalysisMode = '' | 'deep' | 'quick';
+type AnalysisMode = '' | 'quick';
 
 const MODE_BTN: Record<AnalysisMode, { label: string; desc: string }> = {
   '': { label: '默认', desc: '包含 LLM 分析' },
-  deep: { label: '深度', desc: '包含 LLM 分析' },
   quick: { label: '快速', desc: '仅影响分析，跳过 LLM' },
 };
 
@@ -28,7 +27,6 @@ export default function ReportPage({ commitHash }: { commitHash: string }) {
   const [analyzing, setAnalyzing] = useState(false);
   const [mode, setMode] = useState<AnalysisMode>('');
   const [repoPath, setRepoPath] = useState('.');
-  const [hasGraphify, setHasGraphify] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [diffText, setDiffText] = useState<string | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
@@ -58,14 +56,12 @@ export default function ReportPage({ commitHash }: { commitHash: string }) {
 
   const handleReanalyze = async () => {
     setAnalyzing(true);
-    setHasGraphify(false);
     setSelectedFile(null);
     try {
       const isQuick = mode === 'quick';
       await triggerAnalysis(commitHash, repoPath, isQuick);
       const newReport = await fetchReport(commitHash);
       setReport(newReport);
-      if (mode === 'deep') setHasGraphify(true);
     } catch (e: any) {
       alert('分析失败: ' + (e.message || '未知错误'));
     } finally {
@@ -162,7 +158,7 @@ export default function ReportPage({ commitHash }: { commitHash: string }) {
           backgroundColor: '#3498db', color: '#fff', textDecoration: 'none',
         }}>← 时间线</a>
         <span style={{ fontSize: 13, fontWeight: 600, color: '#555', whiteSpace: 'nowrap' }}>重新分析</span>
-        {(['', 'deep', 'quick'] as AnalysisMode[]).map((m) => (
+        {(['', 'quick'] as AnalysisMode[]).map((m) => (
           <button
             key={m}
             onClick={() => setMode(m)}
@@ -186,20 +182,6 @@ export default function ReportPage({ commitHash }: { commitHash: string }) {
           }}
         >{analyzing ? '分析中...' : '重新分析'}</button>
       </div>
-
-      {hasGraphify && (
-        <a
-          href={`/api/reports/${commitHash}/graphify?repo=${encodeURIComponent(repoPath)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: 'inline-block', marginBottom: 16, padding: '8px 20px',
-            borderRadius: 6, border: 'none', fontSize: 14, fontWeight: 600,
-            backgroundColor: '#9b59b6', color: '#fff', cursor: 'pointer',
-            textDecoration: 'none',
-          }}
-        >打开代码树 (Graphify)</a>
-      )}
 
       <OverviewCard report={report} />
       <ReviewDetails findings={report.findings} />

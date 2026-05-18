@@ -27,18 +27,16 @@ review web
 
 核心命令。分析指定提交的代码变更、影响范围和潜在风险。
 
-| 选项        | 说明                                                            |
+| 选项 | 说明 |
 | --------- | ------------------------------------------------------------- |
-| `--quick` | 跳过 LLM 审查，只做 GitNexus 影响分析（速度更快）                              |
-| `--deep`  | 额外生成 Graphify 代码树可视化（输出 `graphify-out/GRAPH_TREE.html`，浏览器打开） |
-| `--repo`  | 指定仓库路径（默认当前目录）                                                |
+| `--quick` | 跳过 LLM 审查，只做 GitNexus 影响分析（速度更快） |
+| `--repo`  | 指定仓库路径（默认当前目录） |
 
 示例：
 
 ```bash
 review check abc1234
 review check --quick abc1234
-review check --deep abc1234
 review check --repo /path/to/repo abc1234
 ```
 
@@ -79,7 +77,6 @@ Web 界面包含：
 - **文件变更列表** — 增删行数统计
 - **影响关系图** — vis-network 交互式图谱，红色 = 高风险，蓝色 = 被影响
 - **审查详情** — LLM 发现的潜在问题（如有 API Key）
-- **社区聚类图** — 按符号群组展示影响传播
 
 ### `review history` — 历史记录
 
