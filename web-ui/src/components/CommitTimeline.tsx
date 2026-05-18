@@ -97,8 +97,7 @@ export default function CommitTimeline({
                 <div
                   onClick={() => {
                     if (isAnalyzing) return;
-                    if (isAnalyzed) onViewReport(c.hash);
-                    else onAnalyze(c.hash);
+                    onViewReport(c.hash);
                   }}
                   style={{
                     flex: 1,
@@ -158,9 +157,9 @@ export default function CommitTimeline({
                     {isAnalyzing ? (
                       <span style={{ color: '#e67e22' }}>⏳ Analyzing...</span>
                     ) : isAnalyzed ? (
-                      <span style={{ color: '#27ae60' }}>✓ Click to view report</span>
+                      <span style={{ color: '#27ae60' }}>✓ Click to view</span>
                     ) : (
-                      <span style={{ color: '#95a5a6' }}>Click to analyze</span>
+                      <span style={{ color: '#95a5a6' }}>Click to preview & analyze</span>
                     )}
                   </div>
                 </div>

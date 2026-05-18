@@ -2,7 +2,7 @@ import json
 import sqlite3
 from pathlib import Path
 from typing import Optional
-from review.models import Report, DiffChange, ImpactItem, ReviewFinding
+from review.models import Report, DiffChange, ImpactItem, ReviewFinding, FileAnalysis
 
 
 DB_PATH = Path.home() / ".review" / "reports.db"
@@ -38,7 +38,16 @@ def _report_from_dict(data: dict) -> Report:
     data["changes"] = [DiffChange(**c) for c in data.get("changes", [])]
     data["impacts"] = [ImpactItem(**i) for i in data.get("impacts", [])]
     data["findings"] = [ReviewFinding(**f) for f in data.get("findings", [])]
-    return Report(**data)
+    file_analyses = data.pop("file_analyses", [])
+    report = Report(**data)
+    report.file_analyses = [_file_analysis_from_dict(fa) for fa in file_analyses]
+    return report
+
+
+def _file_analysis_from_dict(data: dict) -> FileAnalysis:
+    data["impacts"] = [ImpactItem(**i) for i in data.get("impacts", [])]
+    data["findings"] = [ReviewFinding(**f) for f in data.get("findings", [])]
+    return FileAnalysis(**data)
 
 
 def load_report(commit_hash: str) -> Optional[Report]:

@@ -36,3 +36,6 @@ skills-lock.json
 
 # Docs (design specs, etc)
 docs/
+
+# Tests
+tests/

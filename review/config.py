@@ -15,6 +15,7 @@ DEFAULT_CONFIG = {
     "commit_hash": "",
     "api_type": "deepseek",
     "log_dir": "",
+    "repos": [],
 }
 
 

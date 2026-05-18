@@ -16,6 +16,9 @@ from review.config import load_config, save_config, get_env_from_config, get_log
 from review.store.report_store import load_report, list_reports
 
 
+from review.engine.diff_parser import get_diff, parse_diff, get_commit_info
+
+
 def _log_event(event: str):
     """Write a log event to the configured log directory."""
     cfg = load_config()
@@ -135,6 +138,28 @@ def api_get_diff(commit_hash: str, repo: str = Query("."), file: str = Query("")
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
+@app.get("/api/commits/{commit_hash}/preview")
+def api_commit_preview(commit_hash: str, repo: str = Query(".")):
+    """Return commit info + changed files without full analysis."""
+    try:
+        info = get_commit_info(commit_hash, repo)
+        diff_text = get_diff(commit_hash, repo)
+        changes = parse_diff(diff_text)
+        return JSONResponse({
+            "hash": info["hash"],
+            "message": info["message"],
+            "body": info.get("body", ""),
+            "author": info["author"],
+            "time": info.get("time", ""),
+            "changes": [
+                {"file": c.file, "added": c.added, "removed": c.removed, "hunks": c.hunks}
+                for c in changes
+            ],
+        })
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 @app.get("/api/reports/{commit_hash}/format")
 def api_get_report_formatted(commit_hash: str):
     """Return markdown-formatted report for CLI viewing."""
@@ -159,6 +184,67 @@ def api_get_report_formatted(commit_hash: str):
         for f in report.findings:
             lines.append(f"- [{f.severity}] {f.category}: {f.message}")
     return JSONResponse({"markdown": "\n".join(lines)})
+
+
+@app.post("/api/reports/{commit_hash}/analyze-file")
+def api_analyze_file(
+    commit_hash: str,
+    file: str = Query(...),
+    repo: str = Query("."),
+):
+    """Run LLM review on a single file's changes and update the report."""
+    from review.engine.llm_reviewer import run_file_llm_review
+
+    report = load_report(commit_hash)
+    if not report:
+        return JSONResponse({"error": "not found"}, status_code=404)
+
+    # Find matching FileAnalysis
+    fa = None
+    for f in report.file_analyses:
+        if f.file == file:
+            fa = f
+            break
+
+    if not fa:
+        return JSONResponse({"error": f"file '{file}' not found in report"}, status_code=404)
+
+    # Run per-file LLM review
+    findings = run_file_llm_review(
+        file_path=fa.file,
+        module=fa.module,
+        diff_text=fa.diff_text,
+        impacts=fa.impacts,
+    )
+
+    fa.findings = findings
+    fa.analysis_status = "completed" if findings else "error"
+
+    # Persist updated report
+    save_report(report)
+
+    return JSONResponse({
+        "findings": [f.__dict__ for f in findings],
+        "analysis_status": fa.analysis_status,
+    })
+
+
+@app.get("/api/reports/{commit_hash}/modules")
+def api_get_modules(commit_hash: str):
+    """Return module info and cross-module impacts for a report."""
+    report = load_report(commit_hash)
+    if not report:
+        return JSONResponse({"error": "not found"}, status_code=404)
+
+    file_modules = {}
+    for fa in report.file_analyses:
+        file_modules[fa.file] = fa.module
+
+    return JSONResponse({
+        "modules": report.modules,
+        "cross_module_impacts": report.cross_module_impacts,
+        "file_modules": file_modules,
+    })
 
 
 # ── Launcher API ──────────────────────────────────────────────────────────────

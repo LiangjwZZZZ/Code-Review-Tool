@@ -32,6 +32,16 @@ class ReviewFinding:
 
 
 @dataclass
+class FileAnalysis:
+    file: str
+    diff_text: str
+    impacts: list[ImpactItem] = field(default_factory=list)
+    findings: list[ReviewFinding] = field(default_factory=list)
+    module: str = ""
+    analysis_status: str = "pending"  # pending | completed | error
+
+
+@dataclass
 class Report:
     commit_hash: str
     commit_message: str
@@ -45,6 +55,9 @@ class Report:
     findings: list[ReviewFinding] = field(default_factory=list)
     summary: str = ""
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    file_analyses: list[FileAnalysis] = field(default_factory=list)
+    cross_module_impacts: list[dict] = field(default_factory=list)
+    modules: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self)

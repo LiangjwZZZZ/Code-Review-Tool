@@ -5,26 +5,47 @@ import type { ImpactItem } from '../types';
 
 interface ImpactGraphProps {
   impacts: ImpactItem[];
+  fileModules?: Record<string, string>;
 }
 
-const RISK_COLORS: Record<string, string> = {
-  CRITICAL: '#e74c3c',
-  HIGH: '#e67e22',
-  MEDIUM: '#f1c40f',
-  LOW: '#2ecc71',
-};
+const MODULE_COLORS = [
+  '#3498db', '#e74c3c', '#2ecc71', '#f39c12',
+  '#9b59b6', '#1abc9c', '#e67e22', '#34495e',
+  '#16a085', '#c0392b', '#2980b9', '#8e44ad',
+];
 
-function buildGraph(impacts: ImpactItem[]) {
+function getModuleColor(module: string, usedColors: Record<string, string>): string {
+  if (usedColors[module]) return usedColors[module];
+  const idx = Object.keys(usedColors).length % MODULE_COLORS.length;
+  usedColors[module] = MODULE_COLORS[idx];
+  return usedColors[module];
+}
+
+function buildGraph(impacts: ImpactItem[], fileModules?: Record<string, string>) {
   const nodes: Array<{ id: string; label: string; color: string; title: string; shape: string }> = [];
-  const edges: Array<{ from: string; to: string; color?: string; dashes?: boolean }> = [];
+  const edges: Array<{ from: string; to: string; color?: string; dashes?: boolean; width?: number }> = [];
+  const moduleColors: Record<string, string> = {};
 
   for (const item of impacts) {
-    const color = RISK_COLORS[item.risk] || '#95a5a6';
+    // Determine color: by module if available, else by risk
+    let color: string;
+    let module: string | undefined;
+    if (fileModules) {
+      module = fileModules[item.file];
+      if (module) {
+        color = getModuleColor(module, moduleColors);
+      } else {
+        color = '#95a5a6'; // unknown module
+      }
+    } else {
+      color = '#e74c3c'; // fallback: all changed nodes red
+    }
+
     nodes.push({
       id: item.symbol,
       label: `${item.symbol}\n[${item.risk}]`,
       color: color,
-      title: `${item.symbol}\n${item.file}\nRisk: ${item.risk}\nKind: ${item.symbol_kind}`,
+      title: `${item.symbol}\n${item.file}${module ? `\nModule: ${module}` : ''}\nRisk: ${item.risk}\nKind: ${item.symbol_kind}\nDirection: ${item.direction}`,
       shape: 'box',
     });
 
@@ -43,10 +64,10 @@ function buildGraph(impacts: ImpactItem[]) {
     }
   }
 
-  return { nodes, edges };
+  return { nodes, edges, usedModules: Object.keys(moduleColors) };
 }
 
-export default function ImpactGraph({ impacts }: ImpactGraphProps) {
+export default function ImpactGraph({ impacts, fileModules }: ImpactGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const networkRef = useRef<Network | null>(null);
 
@@ -57,7 +78,7 @@ export default function ImpactGraph({ impacts }: ImpactGraphProps) {
       networkRef.current.destroy();
     }
 
-    const { nodes, edges } = buildGraph(impacts);
+    const { nodes, edges, usedModules } = buildGraph(impacts, fileModules);
 
     networkRef.current = new Network(
       containerRef.current,
@@ -74,18 +95,31 @@ export default function ImpactGraph({ impacts }: ImpactGraphProps) {
       networkRef.current?.destroy();
       networkRef.current = null;
     };
-  }, [impacts]);
+  }, [impacts, fileModules]);
 
   if (impacts.length === 0) return null;
+
+  // Build module color legend
+  const moduleColors: Record<string, string> = {};
+  if (fileModules) {
+    impacts.forEach(item => {
+      const m = fileModules[item.file];
+      if (m) getModuleColor(m, moduleColors);
+    });
+  }
 
   return (
     <div style={{ marginTop: 32 }}>
       <h2 style={{ marginBottom: 8 }}>Impact Graph</h2>
-      <div style={{ marginBottom: 8, display: 'flex', gap: 16, fontSize: 13 }}>
-        <span><span style={{ color: '#e74c3c' }}>■</span> CRITICAL</span>
-        <span><span style={{ color: '#e67e22' }}>■</span> HIGH</span>
-        <span><span style={{ color: '#f1c40f' }}>■</span> MEDIUM</span>
-        <span><span style={{ color: '#2ecc71' }}>■</span> LOW</span>
+      <div style={{ marginBottom: 8, display: 'flex', gap: 16, fontSize: 13, flexWrap: 'wrap' }}>
+        {Object.keys(moduleColors).length > 0 && (
+          <>
+            {Object.entries(moduleColors).map(([m, c]) => (
+              <span key={m}><span style={{ color: c }}>■</span> {m}</span>
+            ))}
+            <span style={{ color: '#999' }}>|</span>
+          </>
+        )}
         <span><span style={{ color: '#85c1e9' }}>●</span> Affected</span>
       </div>
       <div

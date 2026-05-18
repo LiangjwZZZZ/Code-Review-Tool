@@ -23,6 +23,44 @@ SYSTEM_PROMPT = """你是一个代码审查助手，分析某次提交的影响�
 """
 
 
+def build_file_review_prompt(
+    file_path: str,
+    module: str,
+    diff_text: str,
+    impacts: list[ImpactItem],
+) -> str:
+    """Build a focused LLM prompt for a single file's changes."""
+    lines = [
+        f"## File: {file_path}",
+        f"Module: {module}",
+        "",
+        "### Diff",
+    ]
+
+    max_lines = 200
+    diff_lines = diff_text.split("\n")
+    if len(diff_lines) > max_lines:
+        lines.append(f"(显示前 {max_lines} 行，共 {len(diff_lines)} 行)")
+        diff_lines = diff_lines[:max_lines]
+    for dl in diff_lines:
+        lines.append(f"  {dl}")
+
+    if impacts:
+        lines.extend(["", "### Impact Analysis (this file only)"])
+        for imp in impacts:
+            lines.append(f"- {imp.symbol} ({imp.symbol_kind}) - Risk: {imp.risk}")
+            if imp.affected_symbols:
+                lines.append(f"  Affects: {', '.join(imp.affected_symbols[:5])}")
+
+    lines.extend([
+        "",
+        "## Instructions",
+        "Analyze ONLY this file's changes. List review findings as JSON array.",
+        'Format: [{"category": "...", "severity": "...", "message": "...", "suggestion": "..."}]',
+    ])
+    return "\n".join(lines)
+
+
 def build_review_prompt(
     commit_message: str,
     changes: list[DiffChange],
@@ -129,6 +167,51 @@ def run_llm_review(report: Report, api_key: Optional[str] = None, diff_text: str
             )]
 
     return _fallback_findings(report)
+
+
+def run_file_llm_review(
+    file_path: str,
+    module: str,
+    diff_text: str,
+    impacts: list[ImpactItem],
+) -> list[ReviewFinding]:
+    """Run LLM review focused on a single file's changes."""
+    prompt = build_file_review_prompt(file_path, module, diff_text, impacts)
+
+    if os.environ.get("DEEPSEEK_API_KEY"):
+        try:
+            content = _call_deepseek(prompt)
+            return _parse_findings(content)
+        except Exception as e:
+            return [
+                ReviewFinding(
+                    category="quality", severity="INFO",
+                    message=f"DeepSeek 审查失败: {e}",
+                    suggestion="请检查 API key",
+                )
+            ]
+
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if key:
+        try:
+            content = _call_anthropic(prompt, key)
+            return _parse_findings(content)
+        except Exception as e:
+            return [
+                ReviewFinding(
+                    category="quality", severity="INFO",
+                    message=f"LLM 审查不可用: {e}",
+                    suggestion="请设置 ANTHROPIC_API_KEY 或 DEEPSEEK_API_KEY",
+                )
+            ]
+
+    return [
+        ReviewFinding(
+            category="analysis", severity="INFO",
+            message=f"文件 {file_path} 修改了 {len(diff_text.splitlines())} 行",
+            suggestion="请审查该文件的变更",
+        )
+    ]
 
 
 def _parse_findings(content: str) -> list[ReviewFinding]:

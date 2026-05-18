@@ -23,6 +23,21 @@ export interface ReviewFinding {
   suggestion: string;
 }
 
+export interface FileAnalysis {
+  file: string;
+  diff_text: string;
+  impacts: ImpactItem[];
+  findings: ReviewFinding[];
+  module: string;
+  analysis_status: string;
+}
+
+export interface ModuleInfo {
+  name: string;
+  path: string;
+  type: string;
+}
+
 export interface Report {
   commit_hash: string;
   commit_message: string;
@@ -33,4 +48,7 @@ export interface Report {
   findings: ReviewFinding[];
   summary: string;
   created_at: string;
+  file_analyses: FileAnalysis[];
+  cross_module_impacts: any[];
+  modules: ModuleInfo[];
 }

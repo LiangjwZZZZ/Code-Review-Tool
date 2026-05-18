@@ -74,6 +74,7 @@ export interface LauncherConfigData {
   commit_hash: string;
   api_type: string;
   log_dir: string;
+  repos?: string[];
 }
 
 export async function fetchLauncherConfig(): Promise<LauncherConfigData> {
@@ -94,11 +95,41 @@ export async function shutdownServer(): Promise<void> {
   await fetch(`${API_BASE}/shutdown`, { method: 'POST' });
 }
 
+export interface CommitPreview {
+  hash: string;
+  message: string;
+  body: string;
+  author: string;
+  time: string;
+  changes: { file: string; added: number; removed: number; hunks: string[] }[];
+}
+
+export async function fetchCommitPreview(commitHash: string, repo: string = '.'): Promise<CommitPreview> {
+  const res = await fetch(`${API_BASE}/commits/${commitHash}/preview?repo=${encodeURIComponent(repo)}`);
+  if (!res.ok) throw new Error('Failed to fetch commit preview');
+  return res.json();
+}
+
 export async function fetchDiff(commitHash: string, repo: string, file?: string): Promise<{ diff: string }> {
   let url = `${API_BASE}/diff/${commitHash}?repo=${encodeURIComponent(repo)}`;
   if (file) url += `&file=${encodeURIComponent(file)}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch diff');
+  return res.json();
+}
+
+export async function triggerFileAnalysis(commitHash: string, file: string, repo: string = '.'): Promise<{ findings: any[]; analysis_status: string }> {
+  const res = await fetch(`${API_BASE}/reports/${commitHash}/analyze-file?file=${encodeURIComponent(file)}&repo=${encodeURIComponent(repo)}`, { method: 'POST' });
+  if (!res.ok) {
+    const body = await res.json();
+    throw new Error(body.error || 'Analysis failed');
+  }
+  return res.json();
+}
+
+export async function fetchModules(commitHash: string): Promise<{ modules: any[]; cross_module_impacts: any[]; file_modules: Record<string, string> }> {
+  const res = await fetch(`${API_BASE}/reports/${commitHash}/modules`);
+  if (!res.ok) throw new Error('Failed to fetch modules');
   return res.json();
 }
 
