@@ -8,16 +8,12 @@
 
 - Python 3.12+
 - Node.js 16+ 和 npm
-- [GitNexus](https://github.com/LiangjwZZZZ/GitNexus) v1.6.4+
+- GitNexus v1.6.4+
 
 ### 步骤
 
 ```bash
-# 1. 安装 GitNexus
-pip install gitnexus
-# 或从 https://github.com/LiangjwZZZZ/GitNexus 源码安装
-
-# 2. 安装 Review Tool
+# 安装 Review Tool
 cd CodeReviewTool
 pip install -e .
 # 安装后 review 命令即可用
