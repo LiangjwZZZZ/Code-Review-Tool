@@ -19,6 +19,8 @@ DEFAULT_CONFIG = {
     "current_repo": "",
     "global_branch": "",
     "per_repo_branches": {},
+    "gerrit_url": "",
+    "gerrit_repo_map": {},
 }
 
 

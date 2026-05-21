@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from review.config import load_config, save_config, get_env_from_config, get_log_dir
 from review.store.report_store import load_report, list_reports
+from review.gerrit import parse_gerrit_url, get_refspec, match_repo_to_gerrit
 
 
 from review.engine.diff_parser import get_diff, parse_diff, get_commit_info
@@ -246,6 +247,84 @@ def api_get_modules(commit_hash: str):
         "cross_module_impacts": report.cross_module_impacts,
         "file_modules": file_modules,
     })
+
+
+# ── Gerrit integration ─────────────────────────────────────────────────────────
+
+
+@app.post("/api/gerrit/analyze")
+def api_gerrit_analyze(
+    gerrit_url: str = Query(..., description="Gerrit change URL"),
+    repo: str = Query("", description="Override local repo path"),
+):
+    """Fetch a Gerrit change and run analysis on it.
+
+    Flow: parse URL → match local repo → git fetch → generate_report → save.
+    """
+    from review.engine.report_generator import generate_report
+    from review.store.report_store import save_report
+
+    cfg = load_config()
+    parsed = parse_gerrit_url(gerrit_url)
+
+    # Determine which local repo to use
+    if repo:
+        repo_path = repo
+    else:
+        repos_list = cfg.get("repos", []) or []
+        current = cfg.get("current_repo", "")
+        candidates = repos_list if repos_list else ([current] if current else [])
+
+        matched = match_repo_to_gerrit(
+            parsed["host"], parsed["project"],
+            candidates,
+            cfg.get("gerrit_repo_map", {}),
+        )
+        if not matched:
+            matched = current or cfg.get("repo_path", ".")
+        repo_path = matched
+
+    refspec = get_refspec(parsed["change"], parsed["patchset"])
+
+    try:
+        fetch_result = subprocess.run(
+            ["git", "fetch", "origin", refspec],
+            capture_output=True, text=True, cwd=repo_path,
+            timeout=30,
+        )
+        if fetch_result.returncode != 0:
+            return JSONResponse({
+                "error": f"git fetch failed: {fetch_result.stderr[:500]}",
+            }, status_code=400)
+
+        rev_result = subprocess.run(
+            ["git", "rev-parse", "FETCH_HEAD"],
+            capture_output=True, text=True, cwd=repo_path,
+            timeout=10,
+        )
+        if rev_result.returncode != 0:
+            return JSONResponse({
+                "error": f"Failed to resolve FETCH_HEAD: {rev_result.stderr[:200]}",
+            }, status_code=500)
+        commit_hash = rev_result.stdout.strip()
+
+        report = generate_report(commit_hash, repo_path=repo_path)
+        save_report(report)
+
+        _log_event(
+            f"Gerrit分析完成 change={parsed['change']} patchset={parsed['patchset']} "
+            f"commit={commit_hash[:12]} repo={Path(repo_path).name}"
+        )
+
+        return JSONResponse({
+            "status": "ok",
+            "commit_hash": report.commit_hash,
+            "risk_level": report.risk_level,
+            "report_url": f"/report/{report.commit_hash}?repo={repo_path}",
+        })
+    except Exception as e:
+        _log_event(f"Gerrit分析失败 change={parsed['change']} error={e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 # ── Repo manifest detection ───────────────────────────────────────────────────

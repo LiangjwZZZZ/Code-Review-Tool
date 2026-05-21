@@ -136,6 +136,17 @@ export async function fetchModules(commitHash: string): Promise<{ modules: any[]
   return res.json();
 }
 
+export async function triggerGerritAnalysis(gerritUrl: string, repo?: string): Promise<{ status: string; commit_hash: string; risk_level: string; report_url: string }> {
+  let url = `${API_BASE}/gerrit/analyze?gerrit_url=${encodeURIComponent(gerritUrl)}`;
+  if (repo) url += `&repo=${encodeURIComponent(repo)}`;
+  const res = await fetch(url, { method: 'POST' });
+  if (!res.ok) {
+    const body = await res.json();
+    throw new Error(body.error || 'Gerrit analysis failed');
+  }
+  return res.json();
+}
+
 export function startLaunchStream(config: LauncherConfigData, onMessage: (data: any) => void, onError: (err: string) => void): AbortController {
   const controller = new AbortController();
   fetch(`${API_BASE}/launcher/start`, {

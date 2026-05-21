@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import ReportPage from './pages/ReportPage';
 import LauncherPage from './pages/LauncherPage';
 import CommitTimeline from './components/CommitTimeline';
-import { fetchCommits, triggerAnalysis, fetchLauncherConfig, saveLauncherConfig } from './api';
+import { fetchCommits, triggerAnalysis, fetchLauncherConfig, saveLauncherConfig, triggerGerritAnalysis } from './api';
 import type { CommitNode, BranchInfo } from './api';
 
 const containerStyle: React.CSSProperties = {
@@ -24,6 +24,9 @@ function TimelineView() {
   const [repoPath, setRepoPath] = useState('.');
   const [repos, setRepos] = useState<string[]>([]);
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
+  const [gerritUrl, setGerritUrl] = useState('');
+  const [gerritLoading, setGerritLoading] = useState(false);
+  const [gerritError, setGerritError] = useState<string | null>(null);
 
   const getEffectiveBranch = (p: string) => perRepoBranches[p] || globalBranch || '';
 
@@ -119,6 +122,20 @@ function TimelineView() {
     window.location.href = `/report/${hash}?repo=${encodeURIComponent(repoPath)}`;
   };
 
+  const handleGerritAnalyze = async () => {
+    if (!gerritUrl.trim()) return;
+    setGerritLoading(true);
+    setGerritError(null);
+    try {
+      const result = await triggerGerritAnalysis(gerritUrl.trim());
+      window.location.href = result.report_url;
+    } catch (e: any) {
+      setGerritError(e.message || 'Gerrit analysis failed');
+    } finally {
+      setGerritLoading(false);
+    }
+  };
+
   const isMultiRepo = repos.length > 1;
   const rootPath = isMultiRepo ? repos[0].substring(0, repos[0].lastIndexOf('/')) : '';
   const rootName = rootPath ? rootPath.split('/').pop() || rootPath : '';
@@ -136,6 +153,36 @@ function TimelineView() {
           }}>设置</a>
         </div>
       </div>
+
+      {/* Gerrit URL input */}
+      <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          value={gerritUrl}
+          onChange={(e) => setGerritUrl(e.target.value)}
+          placeholder="Gerrit 变更 URL..."
+          onKeyDown={(e) => e.key === 'Enter' && handleGerritAnalyze()}
+          style={{
+            flex: 1, padding: '6px 10px', borderRadius: 4, border: '1px solid #ddd',
+            fontSize: 13, fontFamily: 'monospace',
+          }}
+        />
+        <button
+          onClick={handleGerritAnalyze}
+          disabled={gerritLoading}
+          style={{
+            padding: '6px 16px', borderRadius: 4, border: 'none', fontSize: 13,
+            fontWeight: 600, color: '#fff', backgroundColor: gerritLoading ? '#95a5a6' : '#27ae60',
+            cursor: 'pointer', whiteSpace: 'nowrap',
+          }}
+        >
+          {gerritLoading ? '分析中...' : 'Gerrit 分析'}
+        </button>
+      </div>
+      {gerritError && (
+        <div style={{ marginBottom: 12, padding: '8px 12px', background: '#ffeef0', borderRadius: 6, fontSize: 13, color: '#e74c3c' }}>
+          {gerritError}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 20 }}>
         {/* Left sidebar: global branch + repo tree */}
