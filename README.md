@@ -68,7 +68,9 @@ python -c "from review.web.server import start_server; start_server()"
 
 **逐文件分析：** 在 Changed Files 中点击文件展开 diff + 影响链，再点"分析这段改动"按需触发 LLM 审查。
 
-**多仓库切换：** 时间线页面顶部下拉选择已保存的仓库，点"+ 添加"录入新仓库路径。
+**多仓库切换（Android Repo）：** 设置页面填写 Android repo 根目录，自动解析 `.repo/manifest.xml` 检测所有子仓库。左侧树形侧边栏切换子仓库、全局切换分支。
+
+**Gerrit 集成：** 时间线页面顶部输入 Gerrit 变更 URL（如 `https://gerrit.example.com/c/my-project/+/12345/3`），自动 fetch 对应 change 并运行完整分析，无需手动 checkout。
 
 **Android 多 Module：** 自动解析 `settings.gradle`，影响图按 module 着色，跨 module 调用链高亮展示。
 
