@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import threading
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Optional
 
@@ -247,6 +248,56 @@ def api_get_modules(commit_hash: str):
     })
 
 
+# ── Repo manifest detection ───────────────────────────────────────────────────
+
+def _detect_repos_from_manifest(root_path: str) -> list[str]:
+    """Detect git repos from .repo/manifest.xml (Android repo tool format).
+    Returns list of full paths to each project in the manifest, or empty list.
+    """
+    repo_dir = Path(root_path) / ".repo"
+    if not repo_dir.is_dir():
+        return []
+
+    manifest_file = repo_dir / "manifest.xml"
+    if not manifest_file.exists():
+        # Try manifests/default.xml as fallback
+        manifest_file = repo_dir / "manifests" / "default.xml"
+    if not manifest_file.exists():
+        return []
+
+    try:
+        tree = ET.parse(manifest_file)
+        root = tree.getroot()
+
+        repos = []
+        for project in root.findall("project"):
+            path = project.get("path")
+            if path:
+                repos.append(str(Path(root_path) / path))
+
+        # Handle <include> elements (relative to manifest dir)
+        parent = manifest_file.parent
+        for inc in root.findall("include"):
+            inc_name = inc.get("name")
+            if not inc_name:
+                continue
+            inc_path = parent / inc_name
+            if inc_path.exists():
+                try:
+                    inc_tree = ET.parse(inc_path)
+                    inc_root = inc_tree.getroot()
+                    for project in inc_root.findall("project"):
+                        path = project.get("path")
+                        if path:
+                            repos.append(str(Path(root_path) / path))
+                except (ET.ParseError, OSError):
+                    pass
+
+        return sorted(set(repos))
+    except (ET.ParseError, OSError):
+        return []
+
+
 # ── Launcher API ──────────────────────────────────────────────────────────────
 
 _running_config: dict = {}
@@ -261,19 +312,50 @@ class LauncherConfig(BaseModel):
     commit_hash: str = ""
     api_type: str = "deepseek"
     log_dir: str = ""
+    repos: list[str] = []
+    current_repo: str = ""
+    global_branch: str = ""
+    per_repo_branches: dict[str, str] = {}
+
+
+def _derive_repos(cfg: dict) -> dict:
+    """Derive repos list from repo_path (no persistence)."""
+    cfg = dict(cfg)  # don't mutate caller's dict
+    rp = cfg.get("repo_path", "")
+    if rp and rp != ".":
+        detected = _detect_repos_from_manifest(rp)
+        cfg["repos"] = detected if detected else [rp]
+    else:
+        cfg["repos"] = []
+    return cfg
 
 
 @app.get("/api/launcher/config")
 def api_get_launcher_config():
     """Load persisted launcher config."""
-    return JSONResponse(load_config())
+    cfg = load_config()
+    return JSONResponse(_derive_repos(cfg))
 
 
 @app.post("/api/launcher/config")
 def api_save_launcher_config(config: LauncherConfig):
     """Save launcher config."""
-    saved = save_config(config.model_dump())
-    return JSONResponse(saved)
+    data = config.model_dump()
+    # Strip repos — it's derived, not persisted
+    data.pop("repos", None)
+
+    rp = data.get("repo_path", "")
+    if rp and rp != ".":
+        detected = _detect_repos_from_manifest(rp)
+        if detected:
+            cr = data.get("current_repo", "")
+            if cr and cr not in detected:
+                data["current_repo"] = ""
+        else:
+            data["current_repo"] = ""
+
+    saved = save_config(data)
+    return JSONResponse(_derive_repos(saved))
 
 
 @app.post("/api/launcher/start")

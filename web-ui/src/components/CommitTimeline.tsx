@@ -4,7 +4,6 @@ interface CommitTimelineProps {
   commits: CommitNode[];
   branches: BranchInfo[];
   selectedBranch: string;
-  onBranchChange: (branch: string) => void;
   onViewReport: (hash: string) => void;
   onAnalyze: (hash: string) => void;
   analyzing: Set<string>;
@@ -21,42 +20,13 @@ function getBranchColor(branches: BranchInfo[], branchName: string): string {
 }
 
 export default function CommitTimeline({
-  commits, branches, selectedBranch, onBranchChange,
+  commits, branches, selectedBranch,
   onViewReport, onAnalyze, analyzing,
 }: CommitTimelineProps) {
-  const allBranches = branches.filter(b => !b.name.startsWith('HEAD'));
   const dotColor = selectedBranch ? getBranchColor(branches, selectedBranch) : '#3498db';
-
-  function displayBranchName(name: string): string {
-    return name.startsWith('remotes/') ? name.slice(8) : name;
-  }
 
   return (
     <div>
-      {/* Branch switcher */}
-      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 13, color: '#7f8c8d' }}>Branch:</span>
-        <select
-          value={selectedBranch}
-          onChange={(e) => onBranchChange(e.target.value)}
-          style={{
-            padding: '4px 10px',
-            borderRadius: 4,
-            border: '1px solid #ddd',
-            fontSize: 13,
-            fontWeight: 500,
-          }}
-        >
-          <option value="">All branches</option>
-          {allBranches.map((b) => (
-            <option key={b.name} value={b.name}>{displayBranchName(b.name)}</option>
-          ))}
-        </select>
-        <span style={{ fontSize: 12, color: '#95a5a6', marginLeft: 8 }}>
-          {commits.length} commit(s)
-        </span>
-      </div>
-
       {/* Timeline */}
       <div style={{ position: 'relative', paddingLeft: 30 }}>
         {/* Vertical line */}

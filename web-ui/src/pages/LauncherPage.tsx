@@ -38,7 +38,7 @@ export default function LauncherPage() {
   const [config, setConfig] = useState<LauncherConfigData>({
     api_key: '', model: 'deepseek-v4-flash', host: '127.0.0.1',
     port: 9090, repo_path: '.', commit_hash: '', api_type: 'deepseek',
-    log_dir: '',
+    log_dir: '', repos: [], current_repo: '', global_branch: '', per_repo_branches: {},
   });
   useEffect(() => {
     fetchLauncherConfig().then(setConfig).catch(() => {});

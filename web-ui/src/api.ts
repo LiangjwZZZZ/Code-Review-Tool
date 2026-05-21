@@ -75,6 +75,9 @@ export interface LauncherConfigData {
   api_type: string;
   log_dir: string;
   repos?: string[];
+  current_repo?: string;
+  global_branch?: string;
+  per_repo_branches?: Record<string, string>;
 }
 
 export async function fetchLauncherConfig(): Promise<LauncherConfigData> {

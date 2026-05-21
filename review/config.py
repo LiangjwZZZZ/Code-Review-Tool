@@ -16,6 +16,9 @@ DEFAULT_CONFIG = {
     "api_type": "deepseek",
     "log_dir": "",
     "repos": [],
+    "current_repo": "",
+    "global_branch": "",
+    "per_repo_branches": {},
 }
 
 
