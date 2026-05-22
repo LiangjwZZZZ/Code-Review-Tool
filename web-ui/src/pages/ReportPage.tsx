@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { Report } from '../types';
 import { fetchReport, triggerAnalysis, fetchLauncherConfig, fetchModules, fetchCommitPreview, fetchDiff } from '../api';
 import type { CommitPreview } from '../api';
@@ -113,6 +113,15 @@ function PreviewFileList({ preview, commitHash, repoPath }: { preview: CommitPre
       .finally(() => setDiffLoading(false));
   }, [selectedFile, commitHash, repoPath]);
 
+  if (preview.changes.length === 0) {
+    return (
+      <div style={{ marginTop: 32 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Changed Files</h3>
+        <p style={{ color: '#95a5a6', fontSize: 13 }}>无文件变更</p>
+      </div>
+    );
+  }
+
   return (
     <div style={{ marginTop: 32 }}>
       <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Changed Files ({preview.changes.length})</h3>
@@ -126,8 +135,8 @@ function PreviewFileList({ preview, commitHash, repoPath }: { preview: CommitPre
         </thead>
         <tbody>
           {preview.changes.map((c, idx) => (
-            <>
-              <tr key={idx}
+            <React.Fragment key={idx}>
+              <tr
                 onClick={() => setSelectedFile(selectedFile === c.file ? null : c.file)}
                 style={{ cursor: 'pointer', backgroundColor: selectedFile === c.file ? '#ebf5fb' : undefined }}
               >
@@ -151,7 +160,7 @@ function PreviewFileList({ preview, commitHash, repoPath }: { preview: CommitPre
                   </td>
                 </tr>
               )}
-            </>
+            </React.Fragment>
           ))}
         </tbody>
       </table>
@@ -168,11 +177,13 @@ export default function ReportPage({ commitHash, repoPathParam = '' }: { commitH
   const [mode, setMode] = useState<AnalysisMode>('');
   const [repoPath, setRepoPath] = useState(repoPathParam || '.');
   const [crossModuleImpacts, setCrossModuleImpacts] = useState<any[]>([]);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const loadData = async () => {
     setLoading(true);
     setNotAnalyzed(false);
     setPreview(null);
+    setPreviewError(null);
     try {
       const [r, modulesData] = await Promise.all([
         fetchReport(commitHash),
@@ -186,8 +197,8 @@ export default function ReportPage({ commitHash, repoPathParam = '' }: { commitH
       try {
         const p = await fetchCommitPreview(commitHash, repoPath);
         setPreview(p);
-      } catch {
-        // preview also failed — keep notAnalyzed without preview
+      } catch (e: any) {
+        setPreviewError(e.message || '无法加载提交预览，请确认仓库路径正确');
       }
     } finally {
       setLoading(false);
@@ -289,6 +300,11 @@ export default function ReportPage({ commitHash, repoPathParam = '' }: { commitH
           {!preview && (
             <div style={{ textAlign: 'center', padding: 60 }}>
               <h2 style={{ fontSize: 20, color: '#2c3e50', marginBottom: 12 }}>此提交尚未分析</h2>
+              {previewError && (
+                <p style={{ color: '#e74c3c', fontSize: 13, marginBottom: 16, background: '#ffeef0', padding: '8px 16px', borderRadius: 6, display: 'inline-block' }}>
+                  {previewError}
+                </p>
+              )}
               <p style={{ color: '#95a5a6', marginBottom: 24 }}>
                 分析后将展示代码变更影响范围、跨 Module 依赖分析和 LLM 审查意见。
               </p>

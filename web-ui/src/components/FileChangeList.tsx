@@ -136,7 +136,14 @@ export default function FileChangeList({
   const [analyzingFiles, setAnalyzingFiles] = useState<Record<string, boolean>>({});
   const [localAnalyses, setLocalAnalyses] = useState<Record<string, FileAnalysis>>({});
 
-  if (changes.length === 0) return null;
+  if (changes.length === 0) {
+    return (
+      <div style={{ marginTop: 32 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Changed Files</h3>
+        <p style={{ color: '#95a5a6', fontSize: 13 }}>无文件变更</p>
+      </div>
+    );
+  }
 
   const visible = expanded ? changes : changes.slice(0, DEFAULT_SHOW);
   const hasMore = changes.length > DEFAULT_SHOW;

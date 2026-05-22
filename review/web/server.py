@@ -175,6 +175,7 @@ def api_commit_preview(commit_hash: str, repo: str = Query(".")):
             ],
         })
     except Exception as e:
+        _log_event(f"预览失败 commit={commit_hash[:12]} repo={repo} error={e}")
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
