@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from review.config import load_config, save_config, get_env_from_config, get_log_dir
 from review.store.report_store import load_report, list_reports
-from review.gerrit import parse_gerrit_url, get_refspec, match_repo_to_gerrit
+from review.gerrit import parse_gerrit_url, get_refspec, get_latest_patchset, match_repo_to_gerrit
 
 
 from review.engine.diff_parser import get_diff, parse_diff, get_commit_info
@@ -284,7 +284,20 @@ def api_gerrit_analyze(
             matched = current or cfg.get("repo_path", ".")
         repo_path = matched
 
-    refspec = get_refspec(parsed["change"], parsed["patchset"])
+    patchset = parsed["patchset"]
+    if patchset is None:
+        patchset = get_latest_patchset(
+            parsed["host"], parsed["change"],
+            username=cfg.get("gerrit_username") or None,
+            password=cfg.get("gerrit_password") or None,
+        )
+    if patchset is None:
+        return JSONResponse({
+            "error": "No patchset specified and could not query Gerrit API for the latest patchset. "
+                     "Please configure Gerrit credentials in settings or append the patchset number to the URL (e.g. .../+/106779/3)."
+        }, status_code=400)
+
+    refspec = get_refspec(parsed["change"], patchset)
 
     try:
         fetch_result = subprocess.run(
@@ -395,6 +408,8 @@ class LauncherConfig(BaseModel):
     current_repo: str = ""
     global_branch: str = ""
     per_repo_branches: dict[str, str] = {}
+    gerrit_username: str = ""
+    gerrit_password: str = ""
 
 
 def _derive_repos(cfg: dict) -> dict:
@@ -522,7 +537,11 @@ def api_shutdown():
 
 
 def _mount_static(app: FastAPI):
-    static_dir = Path(__file__).parent / "static"
+    # When packaged with PyInstaller, static files are extracted to sys._MEIPASS/static
+    if getattr(sys, "frozen", False):
+        static_dir = Path(sys._MEIPASS) / "static"  # type: ignore[attr-defined]
+    else:
+        static_dir = Path(__file__).parent / "static"
     if static_dir.exists() and any(static_dir.iterdir()):
         app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
 

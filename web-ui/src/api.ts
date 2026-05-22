@@ -78,6 +78,8 @@ export interface LauncherConfigData {
   current_repo?: string;
   global_branch?: string;
   per_repo_branches?: Record<string, string>;
+  gerrit_username?: string;
+  gerrit_password?: string;
 }
 
 export async function fetchLauncherConfig(): Promise<LauncherConfigData> {

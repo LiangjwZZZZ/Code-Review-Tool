@@ -27,6 +27,8 @@ except ImportError:
     sys.exit(1)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# When packaged with PyInstaller, PROJECT_ROOT points inside the bundle
+IS_FROZEN = getattr(sys, "frozen", False)
 CONFIG_FILE = Path.home() / ".review" / "config.json"
 DEFAULT_CONFIG = {
     "api_key": "", "model": "deepseek-v4-flash",
@@ -271,20 +273,23 @@ class LauncherApp:
                 self.root.after(0, lambda: self._log(f"✗ {label}: 找不到命令", "error"))
                 return False
 
-        # Phase 1: pip install
-        if not run([sys.executable, "-m", "pip", "install", "-e", "."],
-                   str(PROJECT_ROOT), label="pip install"):
-            self.root.after(0, self._finish_fail, "pip install 失败")
-            return
+        if not IS_FROZEN:
+            # Phase 1: pip install (only in development mode)
+            if not run([sys.executable, "-m", "pip", "install", "-e", "."],
+                       str(PROJECT_ROOT), label="pip install"):
+                self.root.after(0, self._finish_fail, "pip install 失败")
+                return
 
-        # Phase 2: npm install
-        if web_ui.exists() and (web_ui / "package.json").exists():
-            if not run(["npm", "install"], str(web_ui), label="npm install"):
-                self.root.after(0, self._finish_fail, "npm install 失败")
-                return
-            if not run(["npm", "run", "build"], str(web_ui), label="npm run build"):
-                self.root.after(0, self._finish_fail, "前端构建失败")
-                return
+            # Phase 2: npm install + build (only in development mode)
+            if web_ui.exists() and (web_ui / "package.json").exists():
+                if not run(["npm", "install"], str(web_ui), label="npm install"):
+                    self.root.after(0, self._finish_fail, "npm install 失败")
+                    return
+                if not run(["npm", "run", "build"], str(web_ui), label="npm run build"):
+                    self.root.after(0, self._finish_fail, "前端构建失败")
+                    return
+        else:
+            self.root.after(0, lambda: self._log("✓ 已打包模式，跳过依赖安装"))
 
         # Phase 3: start daemon
         host = cfg.get("host", "127.0.0.1")
