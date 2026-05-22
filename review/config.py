@@ -21,6 +21,8 @@ DEFAULT_CONFIG = {
     "per_repo_branches": {},
     "gerrit_url": "",
     "gerrit_repo_map": {},
+    "gerrit_username": "",
+    "gerrit_password": "",
 }
 
 

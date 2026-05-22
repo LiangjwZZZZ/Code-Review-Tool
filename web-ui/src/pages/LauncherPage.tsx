@@ -39,6 +39,7 @@ export default function LauncherPage() {
     api_key: '', model: 'deepseek-v4-flash', host: '127.0.0.1',
     port: 9090, repo_path: '.', commit_hash: '', api_type: 'deepseek',
     log_dir: '', repos: [], current_repo: '', global_branch: '', per_repo_branches: {},
+    gerrit_username: '', gerrit_password: '',
   });
   useEffect(() => {
     fetchLauncherConfig().then(setConfig).catch(() => {});
@@ -109,6 +110,19 @@ export default function LauncherPage() {
           <div style={{ ...styles.field, flex: 3 }}>
             <label style={styles.label}>日志目录 (留空默认 ~/.review/logs/)</label>
             <input style={styles.input} placeholder="留空使用默认位置" value={config.log_dir} onChange={(e) => set('log_dir', e.target.value)} />
+          </div>
+        </div>
+
+        <hr style={{ margin: '16px 0 20px', border: 'none', borderTop: '1px solid #eee' }} />
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#555', marginBottom: 12 }}>Gerrit 认证</div>
+        <div style={styles.row}>
+          <div style={styles.field}>
+            <label style={styles.label}>Gerrit 用户名</label>
+            <input style={styles.input} placeholder="your-username" value={config.gerrit_username || ''} onChange={(e) => set('gerrit_username', e.target.value)} />
+          </div>
+          <div style={{ ...styles.field, flex: 2 }}>
+            <label style={styles.label}>Gerrit HTTP 密码</label>
+            <input style={styles.input} type="password" placeholder="Gerrit → Settings → HTTP Credentials" value={config.gerrit_password || ''} onChange={(e) => set('gerrit_password', e.target.value)} />
           </div>
         </div>
 

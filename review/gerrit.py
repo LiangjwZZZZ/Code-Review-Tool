@@ -2,6 +2,8 @@
 
 import re
 import subprocess
+import urllib.request
+import json
 from typing import Optional
 
 
@@ -39,21 +41,54 @@ def parse_gerrit_url(url: str) -> dict:
     return {"host": host, "project": project, "change": change, "patchset": patchset}
 
 
-def get_refspec(change: int, patchset: Optional[int] = None) -> str:
+def get_latest_patchset(
+    host: str,
+    change: int,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+) -> Optional[int]:
+    """Query Gerrit REST API to get the latest patchset number for a change.
+
+    Uses the authenticated endpoint (/a/changes/) when credentials are provided.
+    Returns the patchset number, or None if the API is unreachable.
+    """
+    # Use authenticated endpoint when credentials are supplied
+    if username and password:
+        api_url = f"http://{host}/a/changes/{change}?o=CURRENT_REVISION"
+    else:
+        api_url = f"http://{host}/changes/{change}?o=CURRENT_REVISION"
+
+    try:
+        req = urllib.request.Request(api_url)
+        if username and password:
+            import base64
+            token = base64.b64encode(f"{username}:{password}".encode()).decode()
+            req.add_header("Authorization", f"Basic {token}")
+        # Bypass system proxy for internal Gerrit servers
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(req, timeout=10) as resp:
+            raw = resp.read().decode("utf-8")
+        # Strip Gerrit's anti-XSSI prefix
+        raw = re.sub(r"^\)\]\}'\s*", "", raw)
+        data = json.loads(raw)
+        revisions = data.get("revisions", {})
+        if not revisions:
+            return None
+        return max(v["_number"] for v in revisions.values())
+    except Exception:
+        return None
+
+
+def get_refspec(change: int, patchset: int) -> str:
     """Generate Gerrit refspec for git fetch.
 
     Gerrit stores changes at refs/changes/XX/YYYYYY/Z where:
       XX = last 2 digits of change number (zero-padded)
       YYYYYY = change number
       Z = patchset number
-
-    When patchset is None, returns a wildcard to fetch the latest.
     """
     suffix = f"{change:02d}"[-2:]
-    base = f"refs/changes/{suffix}/{change}"
-    if patchset is not None:
-        return f"{base}/{patchset}"
-    return f"{base}/*"
+    return f"refs/changes/{suffix}/{change}/{patchset}"
 
 
 def match_repo_to_gerrit(
