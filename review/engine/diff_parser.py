@@ -16,7 +16,8 @@ def get_commit_info(commit_hash: str, repo_path: str = ".") -> dict:
     )
     if result.returncode != 0:
         raise RuntimeError(f"git log failed: {result.stderr}")
-    parts = result.stdout.strip().split("\0")
+    stdout = result.stdout or ""
+    parts = stdout.strip().split("\0")
     return {
         "hash": parts[0] if len(parts) > 0 else "",
         "message": parts[1] if len(parts) > 1 else "",
@@ -35,7 +36,7 @@ def get_diff(commit_hash: str, repo_path: str = ".") -> str:
     )
     if result.returncode != 0:
         raise RuntimeError(f"git diff-tree failed: {result.stderr}")
-    return result.stdout
+    return result.stdout or ""
 
 
 def parse_diff(diff_text: str) -> list[DiffChange]:

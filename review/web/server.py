@@ -83,7 +83,8 @@ def api_commits(
         )
 
     commits = []
-    for line in result.stdout.strip().split("\n"):
+    stdout = result.stdout or ""
+    for line in stdout.strip().split("\n"):
         if not line.strip():
             continue
         parts = line.split("|", 4)
@@ -104,7 +105,8 @@ def api_commits(
         capture_output=True, text=True, cwd=repo, timeout=15, **hide_window(),
     )
     branches = []
-    for line in branch_result.stdout.strip().split("\n"):
+    stdout = branch_result.stdout or ""
+    for line in stdout.strip().split("\n"):
         if not line.strip():
             continue
         parts = line.split("|", 1)
