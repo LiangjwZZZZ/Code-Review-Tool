@@ -51,6 +51,7 @@ a = Analysis(
         'review.store.report_store',
         'review.config',
         'review.gerrit',
+        'review.utils',
         'review.models',
         # other deps
         'anyio',

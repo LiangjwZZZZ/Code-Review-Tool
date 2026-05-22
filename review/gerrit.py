@@ -5,6 +5,7 @@ import subprocess
 import urllib.request
 import json
 from typing import Optional
+from review.utils import hide_window
 
 
 def parse_gerrit_url(url: str) -> dict:
@@ -111,7 +112,7 @@ def match_repo_to_gerrit(
             result = subprocess.run(
                 ["git", "remote", "get-url", "origin"],
                 capture_output=True, text=True, cwd=repo_path,
-                timeout=10,
+                timeout=10, **hide_window(),
             )
             if result.returncode != 0:
                 continue

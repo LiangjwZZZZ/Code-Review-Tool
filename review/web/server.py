@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from review.config import load_config, save_config, get_env_from_config, get_log_dir
 from review.store.report_store import load_report, list_reports
 from review.gerrit import parse_gerrit_url, get_refspec, get_latest_patchset, match_repo_to_gerrit
+from review.utils import hide_window
 
 
 from review.engine.diff_parser import get_diff, parse_diff, get_commit_info
@@ -73,7 +74,7 @@ def api_commits(
 
     result = subprocess.run(
         ["git", "log", *scope, "--format=%H|%P|%s|%an|%ai"],
-        capture_output=True, text=True, cwd=repo, timeout=30,
+        capture_output=True, text=True, cwd=repo, timeout=30, **hide_window(),
     )
     if result.returncode != 0:
         return JSONResponse(
@@ -100,7 +101,7 @@ def api_commits(
     # Get branch heads
     branch_result = subprocess.run(
         ["git", "branch", "-a", "--format=%(refname:short)|%(objectname)"],
-        capture_output=True, text=True, cwd=repo, timeout=15,
+        capture_output=True, text=True, cwd=repo, timeout=15, **hide_window(),
     )
     branches = []
     for line in branch_result.stdout.strip().split("\n"):
@@ -318,7 +319,7 @@ def api_gerrit_analyze(
         fetch_result = subprocess.run(
             ["git", "fetch", "origin", refspec],
             capture_output=True, text=True, cwd=repo_path,
-            timeout=30,
+            timeout=30, **hide_window(),
         )
         if fetch_result.returncode != 0:
             return JSONResponse({
@@ -328,7 +329,7 @@ def api_gerrit_analyze(
         rev_result = subprocess.run(
             ["git", "rev-parse", "FETCH_HEAD"],
             capture_output=True, text=True, cwd=repo_path,
-            timeout=10,
+            timeout=10, **hide_window(),
         )
         if rev_result.returncode != 0:
             return JSONResponse({

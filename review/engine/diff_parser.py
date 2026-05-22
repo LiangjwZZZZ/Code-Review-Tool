@@ -1,6 +1,7 @@
 import subprocess
 from pathlib import Path
 from review.models import DiffChange
+from review.utils import hide_window
 
 SUBPROCESS_TIMEOUT = 30
 _EMPTY_TREE = "4b825dc642cb6eb9a060e54bf899d153036e1a5c"
@@ -11,6 +12,7 @@ def get_commit_info(commit_hash: str, repo_path: str = ".") -> dict:
     result = subprocess.run(
         ["git", "log", "-1", "--format=%H%x00%s%x00%b%x00%an%x00%ai", commit_hash],
         capture_output=True, text=True, cwd=repo_path, timeout=SUBPROCESS_TIMEOUT,
+        **hide_window(),
     )
     if result.returncode != 0:
         raise RuntimeError(f"git log failed: {result.stderr}")
@@ -29,6 +31,7 @@ def get_diff(commit_hash: str, repo_path: str = ".") -> str:
     result = subprocess.run(
         ["git", "diff-tree", "--no-commit-id", "-r", "-p", "--root", commit_hash, "--"],
         capture_output=True, text=True, cwd=repo_path, timeout=SUBPROCESS_TIMEOUT,
+        **hide_window(),
     )
     if result.returncode != 0:
         raise RuntimeError(f"git diff-tree failed: {result.stderr}")
