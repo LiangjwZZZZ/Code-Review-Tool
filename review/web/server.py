@@ -577,7 +577,10 @@ async def _spa_fallback(request, call_next):
     """Catch 404 for non-API paths and serve index.html instead."""
     response = await call_next(request)
     if response.status_code == 404 and not request.url.path.startswith("/api/"):
-        index_path = Path(__file__).parent / "static" / "index.html"
+        if getattr(sys, "frozen", False):
+            index_path = Path(sys._MEIPASS) / "static" / "index.html"  # type: ignore[attr-defined]
+        else:
+            index_path = Path(__file__).parent / "static" / "index.html"
         if index_path.exists():
             from starlette.responses import FileResponse
             return FileResponse(str(index_path))
@@ -602,5 +605,10 @@ def start_server(host: str = "127.0.0.1", port: int = 9090):
     logging.getLogger("uvicorn").addHandler(fh)
     logging.getLogger("uvicorn.access").addHandler(fh)
     logging.getLogger("uvicorn.error").addHandler(fh)
+    logging.getLogger().addHandler(fh)  # Also catch root-level errors
 
-    uvicorn.run(app, host=host, port=port)
+    try:
+        uvicorn.run(app, host=host, port=port)
+    except Exception as e:
+        logging.error("Server startup failed: %s", e, exc_info=True)
+        raise
