@@ -1,6 +1,7 @@
 import datetime
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -35,6 +36,14 @@ def _log_event(event: str):
 app = FastAPI(title="Review Tool API")
 
 
+_PSEUDO_BRANCH_LABEL = re.compile(r"^\(HEAD detached (?:at|from) .+\)$|^\(no branch\)$")
+
+
+def _is_detached_head_label(name: str) -> bool:
+    """True when git branch --format returns detached pseudo-branch label."""
+    return bool(_PSEUDO_BRANCH_LABEL.match(name.strip()))
+
+
 @app.get("/api/reports")
 def api_list_reports():
     return JSONResponse(list_reports())
@@ -57,7 +66,7 @@ def api_commits(
     analyzed = {r["commit"] for r in list_reports(999)}
 
     # Determine git log scope
-    if branch:
+    if branch and not _is_detached_head_label(branch):
         scope = [branch]
     else:
         scope = ["--all"]
@@ -95,7 +104,10 @@ def api_commits(
         if not line.strip():
             continue
         parts = line.split("|", 1)
-        branches.append({"name": parts[0], "hash": parts[1] if len(parts) > 1 else ""})
+        name = parts[0]
+        if _is_detached_head_label(name):
+            continue
+        branches.append({"name": name, "hash": parts[1] if len(parts) > 1 else ""})
 
     repo_name = Path(repo).resolve().name
     return JSONResponse({"commits": commits, "branches": branches, "repo_name": repo_name})
