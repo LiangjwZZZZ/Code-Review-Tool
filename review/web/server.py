@@ -76,7 +76,10 @@ def api_commits(
         capture_output=True, text=True, cwd=repo, timeout=30,
     )
     if result.returncode != 0:
-        return JSONResponse({"error": "not a git repository"}, status_code=400)
+        return JSONResponse(
+            {"error": "invalid branch" if branch else "not a git repository"},
+            status_code=400,
+        )
 
     commits = []
     for line in result.stdout.strip().split("\n"):

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import ReportPage from './pages/ReportPage';
 import LauncherPage from './pages/LauncherPage';
 import CommitTimeline from './components/CommitTimeline';
@@ -13,6 +13,7 @@ const containerStyle: React.CSSProperties = {
 };
 
 function TimelineView() {
+  const loadSeq = useRef(0);
   const [commits, setCommits] = useState<CommitNode[]>([]);
   const [branches, setBranches] = useState<BranchInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,6 +25,7 @@ function TimelineView() {
   const [repoPath, setRepoPath] = useState('.');
   const [repos, setRepos] = useState<string[]>([]);
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
+  const [branchQuery, setBranchQuery] = useState('');
   const [gerritUrl, setGerritUrl] = useState('');
   const [gerritLoading, setGerritLoading] = useState(false);
   const [gerritError, setGerritError] = useState<string | null>(null);
@@ -36,43 +38,77 @@ function TimelineView() {
 
   const getEffectiveBranch = (p: string) => perRepoBranches[p] || globalBranch || '';
 
+  const applyLauncherConfig = useCallback((cfg: any) => {
+    const reposList = cfg.repos || [];
+    const normalizedGlobalBranch = normalizeBranchSelection(cfg.global_branch || '');
+    const normalizedPerRepoBranches = Object.fromEntries(
+      Object.entries(cfg.per_repo_branches || {}).map(([k, v]) => [k, normalizeBranchSelection(v as string)])
+    ) as Record<string, string>;
+
+    setRepos(reposList);
+    setGlobalBranch(normalizedGlobalBranch);
+    setPerRepoBranches(normalizedPerRepoBranches);
+
+    return { normalizedGlobalBranch, normalizedPerRepoBranches, reposList };
+  }, []);
+
   const loadCommits = useCallback((path: string, branch: string) => {
     if (!path) return;
+    const seq = ++loadSeq.current;
     setLoading(true);
     setError(null);
     setRepoName('');
+    setCommits([]);
+    setBranches([]);
     fetchCommits(path, branch)
       .then((data) => {
+        if (seq !== loadSeq.current) return;
         setCommits(data.commits);
         setBranches(data.branches);
         setRepoName(data.repo_name);
       })
       .catch((e) => {
-        setError(e.message || 'Not a git repository or no commits found.');
+        if (seq !== loadSeq.current) return;
+        const message = e.message || 'Not a git repository or no commits found.';
+        if (branch && /invalid branch/i.test(message)) {
+          fetchLauncherConfig()
+            .then(async (cfg) => {
+              const updatedPerRepoBranches = { ...(cfg.per_repo_branches || {}) };
+              delete updatedPerRepoBranches[path];
+              await saveLauncherConfig({
+                ...cfg,
+                global_branch: '',
+                per_repo_branches: updatedPerRepoBranches,
+              } as any);
+              if (path === repoPath) {
+                setGlobalBranch('');
+                setPerRepoBranches(updatedPerRepoBranches);
+              }
+            })
+            .catch(() => {});
+          loadCommits(path, '');
+          return;
+        }
+        setError(message);
         setCommits([]);
         setBranches([]);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (seq === loadSeq.current) setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
     fetchLauncherConfig()
       .then((cfg) => {
-        const reposList = cfg.repos || [];
-        setRepos(reposList);
         // In multi-repo mode, default to first repo when no current_repo set
         let path = cfg.current_repo || cfg.repo_path || '.';
+        const { normalizedGlobalBranch, normalizedPerRepoBranches, reposList } = applyLauncherConfig(cfg);
         if (reposList.length > 1 && !cfg.current_repo) {
           path = reposList[0];
           saveLauncherConfig({ ...cfg, current_repo: path } as any).catch(() => {});
         }
-        const normalizedGlobalBranch = normalizeBranchSelection(cfg.global_branch || '');
-        const normalizedPerRepoBranches = Object.fromEntries(
-          Object.entries(cfg.per_repo_branches || {}).map(([k, v]) => [k, normalizeBranchSelection(v as string)])
-        ) as Record<string, string>;
         setRepoPath(path);
-        setGlobalBranch(normalizedGlobalBranch);
-        setPerRepoBranches(normalizedPerRepoBranches);
         const pb = normalizedPerRepoBranches[path];
         const savedBranch = pb || normalizedGlobalBranch || '';
         if (normalizedGlobalBranch !== (cfg.global_branch || '') ||
@@ -91,9 +127,22 @@ function TimelineView() {
   const handleRepoChange = async (path: string) => {
     if (!path || path === repoPath) return;
     setRepoPath(path);
+    setCommits([]);
+    setBranches([]);
+    setRepoName('');
+    setError(null);
     try {
       const cfg = await fetchLauncherConfig();
-      await saveLauncherConfig({ ...cfg, current_repo: path } as any);
+      const nextConfig = {
+        ...cfg,
+        current_repo: path,
+      };
+      await saveLauncherConfig(nextConfig as any);
+      const refreshed = await fetchLauncherConfig();
+      const { normalizedGlobalBranch, normalizedPerRepoBranches } = applyLauncherConfig(refreshed);
+      const branch = normalizedPerRepoBranches[path] || normalizedGlobalBranch || '';
+      loadCommits(path, branch);
+      return;
     } catch { /* ignore */ }
     loadCommits(path, getEffectiveBranch(path));
   };
@@ -157,6 +206,20 @@ function TimelineView() {
   };
 
   const isMultiRepo = repos.length > 1;
+  const selectedBranch = useMemo(() => {
+    const candidate = getEffectiveBranch(repoPath);
+    return candidate && branches.some((b) => b.name === candidate) ? candidate : '';
+  }, [branches, repoPath, globalBranch, perRepoBranches]);
+  const filteredBranches = useMemo(() => {
+    const q = branchQuery.trim().toLowerCase();
+    if (!q) return branches;
+    const tokens = q.split(/\s+/).filter(Boolean);
+    return branches.filter((b) => {
+      const displayName = b.name.startsWith('remotes/') ? b.name.slice(8) : b.name;
+      const haystack = `${b.name} ${displayName}`.toLowerCase();
+      return tokens.every((t) => haystack.includes(t));
+    });
+  }, [branches, branchQuery]);
   const groupedRepos = useMemo(() => {
     const groups = new Map<string, { title: string; items: { path: string; name: string }[] }>();
 
@@ -235,6 +298,20 @@ function TimelineView() {
               <div style={{ fontSize: 12, fontWeight: 700, color: '#7f8c8d', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
                 全局分支
               </div>
+              <input
+                value={branchQuery}
+                onChange={(e) => setBranchQuery(e.target.value)}
+                placeholder="输入关键词过滤分支"
+                style={{
+                  width: '100%',
+                  padding: '4px 10px',
+                  borderRadius: 4,
+                  border: '1px solid #ddd',
+                  fontSize: 13,
+                  marginBottom: 6,
+                  boxSizing: 'border-box',
+                }}
+              />
               <div style={{ position: 'relative' }}>
                 <button
                   onClick={() => setBranchMenuOpen(!branchMenuOpen)}
@@ -242,10 +319,10 @@ function TimelineView() {
                     width: '100%', padding: '5px 8px', borderRadius: 4,
                     border: '1px solid #ddd', fontSize: 13, background: '#fff',
                     cursor: 'pointer', textAlign: 'left',
-                    color: globalBranch ? '#333' : '#999',
+                    color: selectedBranch ? '#333' : '#999',
                   }}
                 >
-                  {globalBranch ? (globalBranch.startsWith('remotes/') ? globalBranch.slice(8) : globalBranch) : '选择分支'}
+                  {selectedBranch ? (selectedBranch.startsWith('remotes/') ? selectedBranch.slice(8) : selectedBranch) : '选择分支'}
                 </button>
                 {branchMenuOpen && (
                   <div style={{
@@ -253,11 +330,11 @@ function TimelineView() {
                     background: '#fff', border: '1px solid #ddd', borderRadius: 4,
                     maxHeight: 200, overflow: 'auto', marginTop: 2,
                   }}>
-                    {branches
+                    {filteredBranches
                       .filter(b => !b.name.startsWith('HEAD') && !isDetachedHeadPseudoBranch(b.name))
                       .map(b => {
                         const displayName = b.name.startsWith('remotes/') ? b.name.slice(8) : b.name;
-                        const isActive = b.name === globalBranch;
+                        const isActive = b.name === selectedBranch;
                         return (
                           <div
                             key={b.name}
@@ -339,26 +416,26 @@ function TimelineView() {
           {branches.length > 0 && (
             <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 13, color: '#7f8c8d', fontWeight: 600 }}>分支:</span>
-              <select
-                value={getEffectiveBranch(repoPath)}
-                onChange={(e) => handlePerRepoBranchChange(repoPath, e.target.value)}
-                style={{
-                  padding: '4px 10px', borderRadius: 4, border: '1px solid #ddd',
-                  fontSize: 13, fontWeight: 500,
-                }}
-              >
-                <option value="">所有分支</option>
-                {branches
-                  .filter(b => !b.name.startsWith('HEAD') && !isDetachedHeadPseudoBranch(b.name))
-                  .map((b) => (
-                    <option key={b.name} value={b.name}>
-                      {b.name.startsWith('remotes/') ? b.name.slice(8) : b.name}
-                    </option>
-                  ))}
-              </select>
+            <select
+              value={getEffectiveBranch(repoPath)}
+              onChange={(e) => handlePerRepoBranchChange(repoPath, e.target.value)}
+              style={{
+                padding: '4px 10px', borderRadius: 4, border: '1px solid #ddd',
+                fontSize: 13, fontWeight: 500,
+              }}
+            >
+              <option value="">所有分支</option>
+              {branches
+                .filter(b => !b.name.startsWith('HEAD') && !isDetachedHeadPseudoBranch(b.name))
+                .map((b) => (
+                  <option key={b.name} value={b.name}>
+                    {b.name.startsWith('remotes/') ? b.name.slice(8) : b.name}
+                  </option>
+                ))}
+            </select>
               <span style={{ fontSize: 12, color: '#95a5a6' }}>
-                {commits.length} commit(s)
-              </span>
+              {commits.length} commit(s)
+            </span>
             </div>
           )}
 
