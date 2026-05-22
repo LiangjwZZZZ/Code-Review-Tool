@@ -453,6 +453,9 @@ def api_save_launcher_config(config: LauncherConfig):
     # Strip repos — it's derived, not persisted
     data.pop("repos", None)
 
+    existing = load_config()
+    old_repo_path = existing.get("repo_path", "")
+
     rp = data.get("repo_path", "")
     if rp and rp != ".":
         detected = _detect_repos_from_manifest(rp)
@@ -462,6 +465,11 @@ def api_save_launcher_config(config: LauncherConfig):
                 data["current_repo"] = ""
         else:
             data["current_repo"] = ""
+
+    # Clear branch selections when repo_path changes — branches may not exist in the new repo
+    if rp != old_repo_path:
+        data["global_branch"] = ""
+        data["per_repo_branches"] = {}
 
     saved = save_config(data)
     return JSONResponse(_derive_repos(saved))
