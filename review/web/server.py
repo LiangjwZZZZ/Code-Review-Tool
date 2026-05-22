@@ -74,7 +74,7 @@ def api_commits(
 
     result = subprocess.run(
         ["git", "log", *scope, "--format=%H|%P|%s|%an|%ai"],
-        capture_output=True, text=True, cwd=repo, timeout=30, **hide_window(),
+        capture_output=True, text=True, encoding="utf-8", cwd=repo, timeout=30, **hide_window(),
     )
     if result.returncode != 0:
         return JSONResponse(
@@ -102,7 +102,7 @@ def api_commits(
     # Get branch heads
     branch_result = subprocess.run(
         ["git", "branch", "-a", "--format=%(refname:short)|%(objectname)"],
-        capture_output=True, text=True, cwd=repo, timeout=15, **hide_window(),
+        capture_output=True, text=True, encoding="utf-8", cwd=repo, timeout=15, **hide_window(),
     )
     branches = []
     stdout = branch_result.stdout or ""

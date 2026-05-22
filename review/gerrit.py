@@ -111,7 +111,7 @@ def match_repo_to_gerrit(
         try:
             result = subprocess.run(
                 ["git", "remote", "get-url", "origin"],
-                capture_output=True, text=True, cwd=repo_path,
+                capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
                 timeout=10, **hide_window(),
             )
             if result.returncode != 0:
