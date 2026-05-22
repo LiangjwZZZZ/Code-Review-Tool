@@ -9,6 +9,7 @@ Usage:
     python review/launcher.py
 """
 
+import argparse
 import json
 import os
 import subprocess
@@ -16,19 +17,32 @@ import sys
 import threading
 from pathlib import Path
 
-try:
-    import tkinter as tk
-    from tkinter import ttk, scrolledtext
-except ImportError:
-    print("错误: tkinter 不可用。请安装 python-tk 包。")
-    print("  macOS: 已预装，无需额外操作")
-    print("  Ubuntu/Debian: sudo apt install python3-tk")
-    print("  Windows: 已预装")
-    sys.exit(1)
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # When packaged with PyInstaller, PROJECT_ROOT points inside the bundle
 IS_FROZEN = getattr(sys, "frozen", False)
+
+
+def _parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--serve", action="store_true")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=9090)
+    return parser.parse_known_args(argv[1:])[0]
+
+
+ARGS = _parse_args(sys.argv)
+
+if not ARGS.serve:
+    try:
+        import tkinter as tk
+        from tkinter import ttk, scrolledtext
+    except ImportError:
+        print("错误: tkinter 不可用。请安装 python-tk 包。")
+        print("  macOS: 已预装，无需额外操作")
+        print("  Ubuntu/Debian: sudo apt install python3-tk")
+        print("  Windows: 已预装")
+        sys.exit(1)
+
 CONFIG_FILE = Path.home() / ".review" / "config.json"
 DEFAULT_CONFIG = {
     "api_key": "", "model": "deepseek-v4-flash",
@@ -303,11 +317,13 @@ class LauncherApp:
                 self.root.after(0, self._finish_fail, f"端口 {port} 已被占用")
                 return
 
+        if IS_FROZEN:
+            launch_cmd = [sys.executable, "--serve", "--host", host, "--port", str(port)]
+        else:
+            launch_cmd = [sys.executable, "-m", "review.launcher", "--serve", "--host", host, "--port", str(port)]
+
         subprocess.Popen(
-            [sys.executable, "-c",
-             f"import sys; sys.path.insert(0, '{PROJECT_ROOT}'); "
-             f"from review.web.server import start_server; "
-             f"start_server(host='{host}', port={port})"],
+            launch_cmd,
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL, start_new_session=True, env=env,
         )
@@ -341,4 +357,9 @@ class LauncherApp:
 
 
 if __name__ == "__main__":
-    LauncherApp().run()
+    if ARGS.serve:
+        from review.web.server import start_server
+
+        start_server(host=ARGS.host, port=ARGS.port)
+    else:
+        LauncherApp().run()
