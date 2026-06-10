@@ -441,7 +441,18 @@ function TimelineView() {
 
       {error && (
         <div style={{ padding: 20, background: '#ffeef0', borderRadius: 8, border: '1px solid #e8e8e8', marginBottom: 16 }}>
-          <p style={{ color: '#e74c3c', fontSize: 13 }}>{error}</p>
+          <p style={{ color: '#e74c3c', fontSize: 13, margin: 0 }}>{error}</p>
+          {error.includes('Git') && (
+            <p style={{ margin: '8px 0 0', fontSize: 13 }}>
+              <a href="/settings" style={{ color: '#3498db', textDecoration: 'underline' }}>
+                前往设置页面配置 Git 路径
+              </a>
+              {' '}或{' '}
+              <a href="https://git-scm.com/downloads" target="_blank" rel="noopener noreferrer" style={{ color: '#3498db', textDecoration: 'underline' }}>
+                下载安装 Git
+              </a>
+            </p>
+          )}
         </div>
       )}
 

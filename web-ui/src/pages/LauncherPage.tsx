@@ -39,7 +39,7 @@ export default function LauncherPage() {
     api_key: '', model: 'deepseek-v4-flash', host: '127.0.0.1',
     port: 9090, repo_path: '.', commit_hash: '', api_type: 'deepseek',
     log_dir: '', repos: [], current_repo: '', global_branch: '', per_repo_branches: {},
-    gerrit_username: '', gerrit_password: '',
+    gerrit_username: '', gerrit_password: '', git_path: '',
   });
   useEffect(() => {
     fetchLauncherConfig().then(setConfig).catch(() => {});
@@ -110,6 +110,13 @@ export default function LauncherPage() {
           <div style={{ ...styles.field, flex: 3 }}>
             <label style={styles.label}>日志目录 (留空默认 ~/.review/logs/)</label>
             <input style={styles.input} placeholder="留空使用默认位置" value={config.log_dir} onChange={(e) => set('log_dir', e.target.value)} />
+          </div>
+        </div>
+
+        <div style={styles.row}>
+          <div style={{ ...styles.field, flex: 3 }}>
+            <label style={styles.label}>Git 路径 (留空使用系统默认)</label>
+            <input style={styles.input} placeholder="留空使用系统 git，或指定完整路径如 C:\cygwin\bin\git.exe" value={config.git_path || ''} onChange={(e) => set('git_path', e.target.value)} />
           </div>
         </div>
 

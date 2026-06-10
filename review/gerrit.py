@@ -6,6 +6,7 @@ import urllib.request
 import json
 from typing import Optional
 from review.utils import hide_window
+from review.config import load_config
 
 
 def parse_gerrit_url(url: str) -> dict:
@@ -107,10 +108,13 @@ def match_repo_to_gerrit(
     if gerrit_repo_map and gerrit_project in gerrit_repo_map:
         return gerrit_repo_map[gerrit_project]
 
+    cfg = load_config()
+    git_cmd = cfg.get("git_path") or "git"
+
     for repo_path in local_repo_paths:
         try:
             result = subprocess.run(
-                ["git", "remote", "get-url", "origin"],
+                [git_cmd, "remote", "get-url", "origin"],
                 capture_output=True, text=True, encoding="utf-8", cwd=repo_path,
                 timeout=10, **hide_window(),
             )

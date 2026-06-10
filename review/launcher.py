@@ -48,7 +48,7 @@ DEFAULT_CONFIG = {
     "api_key": "", "model": "deepseek-v4-flash",
     "host": "127.0.0.1", "port": 9090,
     "repo_path": ".", "commit_hash": "", "api_type": "deepseek",
-    "log_dir": "",
+    "log_dir": "", "git_path": "",
 }
 
 
@@ -146,6 +146,8 @@ class LauncherApp:
 
         self.log_dir_var = add_field(main, "日志目录 (留空默认 ~/.review/logs/)", 6, 0, colspan=3)
 
+        self.git_path_var = add_field(main, "Git 路径 (留空使用系统默认)", 8, 0, colspan=3)
+
         # Set values from config
         self.api_type_var.set(cfg.get("api_type", "deepseek"))
         self.api_key_var.set(cfg.get("api_key", ""))
@@ -155,6 +157,7 @@ class LauncherApp:
         self.repo_var.set(cfg.get("repo_path", "."))
         self.commit_var.set(cfg.get("commit_hash", ""))
         self.log_dir_var.set(cfg.get("log_dir", ""))
+        self.git_path_var.set(cfg.get("git_path", ""))
 
         # Buttons
         btn_frame = tk.Frame(root, bg="#f5f6fa")
@@ -222,6 +225,7 @@ class LauncherApp:
             "repo_path": self.repo_var.get() or ".",
             "commit_hash": self.commit_var.get(),
             "log_dir": self.log_dir_var.get(),
+            "git_path": self.git_path_var.get(),
         }
 
     def _do_save(self):

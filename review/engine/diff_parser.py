@@ -2,15 +2,23 @@ import subprocess
 from pathlib import Path
 from review.models import DiffChange
 from review.utils import hide_window
+from review.config import load_config
 
 SUBPROCESS_TIMEOUT = 30
 _EMPTY_TREE = "4b825dc642cb6eb9a060e54bf899d153036e1a5c"
 
 
+def _get_git_command() -> str:
+    """Get the git command to use, from config or system default."""
+    cfg = load_config()
+    return cfg.get("git_path") or "git"
+
+
 def get_commit_info(commit_hash: str, repo_path: str = ".") -> dict:
     """Get commit metadata (hash, message, body, author, time)."""
+    git_cmd = _get_git_command()
     result = subprocess.run(
-        ["git", "log", "-1", "--format=%H%x00%s%x00%b%x00%an%x00%ai", commit_hash],
+        [git_cmd, "log", "-1", "--format=%H%x00%s%x00%b%x00%an%x00%ai", commit_hash],
         capture_output=True, text=True, encoding="utf-8", cwd=repo_path, timeout=SUBPROCESS_TIMEOUT,
         **hide_window(),
     )
@@ -29,8 +37,9 @@ def get_commit_info(commit_hash: str, repo_path: str = ".") -> dict:
 
 def get_diff(commit_hash: str, repo_path: str = ".") -> str:
     """Get diff for a commit. Handles root commits (no parent) correctly."""
+    git_cmd = _get_git_command()
     result = subprocess.run(
-        ["git", "diff-tree", "--no-commit-id", "-r", "-p", "--root", commit_hash, "--"],
+        [git_cmd, "diff-tree", "--no-commit-id", "-r", "-p", "--root", commit_hash, "--"],
         capture_output=True, text=True, encoding="utf-8", cwd=repo_path, timeout=SUBPROCESS_TIMEOUT,
         **hide_window(),
     )

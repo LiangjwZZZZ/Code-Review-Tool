@@ -23,6 +23,7 @@ DEFAULT_CONFIG = {
     "gerrit_repo_map": {},
     "gerrit_username": "",
     "gerrit_password": "",
+    "git_path": "",  # Path to git executable, empty for system default
 }
 
 

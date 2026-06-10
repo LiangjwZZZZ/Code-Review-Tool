@@ -15,12 +15,18 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from review.config import load_config, save_config, get_env_from_config, get_log_dir
-from review.store.report_store import load_report, list_reports
+from review.store.report_store import load_report, list_reports, save_report
 from review.gerrit import parse_gerrit_url, get_refspec, get_latest_patchset, match_repo_to_gerrit
 from review.utils import hide_window
 
 
 from review.engine.diff_parser import get_diff, parse_diff, get_commit_info
+
+
+def _get_git_command() -> str:
+    """Get the git command to use, from config or system default."""
+    cfg = load_config()
+    return cfg.get("git_path") or "git"
 
 
 def _log_event(event: str):
@@ -72,8 +78,32 @@ def api_commits(
     else:
         scope = ["--all"]
 
+    git_cmd = _get_git_command()
+
+    # Check if git is available
+    try:
+        git_check = subprocess.run(
+            [git_cmd, "--version"],
+            capture_output=True, text=True, timeout=5, **hide_window(),
+        )
+        if git_check.returncode != 0:
+            return JSONResponse(
+                {"error": "git_not_found", "message": f"Git 不可用: {git_cmd}。请在设置中配置 Git 路径，或安装 Git。"},
+                status_code=400,
+            )
+    except FileNotFoundError:
+        return JSONResponse(
+            {"error": "git_not_found", "message": f"找不到 Git: {git_cmd}。请在设置中配置 Git 路径，或安装 Git。"},
+            status_code=400,
+        )
+    except Exception as e:
+        return JSONResponse(
+            {"error": "git_not_found", "message": f"Git 检测失败: {e}"},
+            status_code=400,
+        )
+
     result = subprocess.run(
-        ["git", "log", *scope, "--format=%H|%P|%s|%an|%ai"],
+        [git_cmd, "log", *scope, "--format=%H|%P|%s|%an|%ai"],
         capture_output=True, text=True, encoding="utf-8", cwd=repo, timeout=30, **hide_window(),
     )
     if result.returncode != 0:
@@ -101,7 +131,7 @@ def api_commits(
 
     # Get branch heads
     branch_result = subprocess.run(
-        ["git", "branch", "-a", "--format=%(refname:short)|%(objectname)"],
+        [git_cmd, "branch", "-a", "--format=%(refname:short)|%(objectname)"],
         capture_output=True, text=True, encoding="utf-8", cwd=repo, timeout=15, **hide_window(),
     )
     branches = []
@@ -319,8 +349,9 @@ def api_gerrit_analyze(
     refspec = get_refspec(parsed["change"], patchset)
 
     try:
+        git_cmd = _get_git_command()
         fetch_result = subprocess.run(
-            ["git", "fetch", "origin", refspec],
+            [git_cmd, "fetch", "origin", refspec],
             capture_output=True, text=True, cwd=repo_path,
             timeout=30, **hide_window(),
         )
@@ -330,7 +361,7 @@ def api_gerrit_analyze(
             }, status_code=400)
 
         rev_result = subprocess.run(
-            ["git", "rev-parse", "FETCH_HEAD"],
+            [git_cmd, "rev-parse", "FETCH_HEAD"],
             capture_output=True, text=True, cwd=repo_path,
             timeout=10, **hide_window(),
         )
@@ -429,6 +460,7 @@ class LauncherConfig(BaseModel):
     per_repo_branches: dict[str, str] = {}
     gerrit_username: str = ""
     gerrit_password: str = ""
+    git_path: str = ""
 
 
 def _derive_repos(cfg: dict) -> dict:
