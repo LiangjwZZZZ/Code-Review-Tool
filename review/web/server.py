@@ -29,6 +29,17 @@ def _get_git_command() -> str:
     return cfg.get("git_path") or "git"
 
 
+def _ensure_api_key_env():
+    """Ensure API key from config is set as environment variable."""
+    cfg = load_config()
+    api_key = cfg.get("api_key", "").strip()
+    if api_key:
+        if cfg.get("api_type") == "anthropic":
+            os.environ["ANTHROPIC_API_KEY"] = api_key
+        else:
+            os.environ["DEEPSEEK_API_KEY"] = api_key
+
+
 def _log_event(event: str):
     """Write a log event to the configured log directory."""
     cfg = load_config()
@@ -350,10 +361,23 @@ def api_gerrit_analyze(
 
     try:
         git_cmd = _get_git_command()
+
+        # Build fetch URL with credentials if available
+        gerrit_host = parsed["host"]
+        gerrit_username = (cfg.get("gerrit_username") or "").strip()
+        gerrit_password = (cfg.get("gerrit_password") or "").strip()
+
+        if gerrit_username and gerrit_password:
+            # Use authenticated URL for git fetch
+            fetch_url = f"https://{gerrit_username}:{gerrit_password}@{gerrit_host}/{parsed['project']}"
+        else:
+            fetch_url = f"https://{gerrit_host}/{parsed['project']}"
+
+        # git fetch with SSL verification disabled and no proxy
         fetch_result = subprocess.run(
-            [git_cmd, "fetch", "origin", refspec],
+            [git_cmd, "fetch", "-c", "http.sslVerify=false", "-c", "http.proxy=", fetch_url, refspec],
             capture_output=True, text=True, cwd=repo_path,
-            timeout=30, **hide_window(),
+            timeout=60, **hide_window(),
         )
         if fetch_result.returncode != 0:
             return JSONResponse({
@@ -627,6 +651,9 @@ def start_server(host: str = "127.0.0.1", port: int = 9090):
     """Start the FastAPI web server (blocking)."""
     import uvicorn
     import logging
+
+    # Ensure API key from config is set as environment variable
+    _ensure_api_key_env()
 
     log_dir_env = os.environ.get("REVIEW_LOG_DIR", "")
     if log_dir_env:

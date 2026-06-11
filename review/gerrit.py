@@ -3,6 +3,7 @@
 import re
 import subprocess
 import urllib.request
+import ssl
 import json
 from typing import Optional
 from review.utils import hide_window
@@ -54,11 +55,17 @@ def get_latest_patchset(
     Uses the authenticated endpoint (/a/changes/) when credentials are provided.
     Returns the patchset number, or None if the API is unreachable.
     """
+    # Strip whitespace from credentials
+    if username:
+        username = username.strip()
+    if password:
+        password = password.strip()
+
     # Use authenticated endpoint when credentials are supplied
     if username and password:
-        api_url = f"http://{host}/a/changes/{change}?o=CURRENT_REVISION"
+        api_url = f"https://{host}/a/changes/{change}?o=CURRENT_REVISION"
     else:
-        api_url = f"http://{host}/changes/{change}?o=CURRENT_REVISION"
+        api_url = f"https://{host}/changes/{change}?o=CURRENT_REVISION"
 
     try:
         req = urllib.request.Request(api_url)
@@ -66,8 +73,17 @@ def get_latest_patchset(
             import base64
             token = base64.b64encode(f"{username}:{password}".encode()).decode()
             req.add_header("Authorization", f"Basic {token}")
+
+        # Create SSL context that skips verification for internal Gerrit servers
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+
         # Bypass system proxy for internal Gerrit servers
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({}),
+            urllib.request.HTTPSHandler(context=ctx)
+        )
         with opener.open(req, timeout=10) as resp:
             raw = resp.read().decode("utf-8")
         # Strip Gerrit's anti-XSSI prefix
@@ -77,7 +93,8 @@ def get_latest_patchset(
         if not revisions:
             return None
         return max(v["_number"] for v in revisions.values())
-    except Exception:
+    except Exception as e:
+        print(f"Gerrit API error: {e}")
         return None
 
 
