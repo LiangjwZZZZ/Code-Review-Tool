@@ -543,7 +543,9 @@ def _derive_repos(cfg: dict) -> dict:
 def api_get_launcher_config():
     """Load persisted launcher config."""
     cfg = load_config()
-    return JSONResponse(_derive_repos(cfg))
+    derived = _derive_repos(cfg)
+    _log_event(f"api_get_config: repo_path={cfg.get('repo_path')} current_repo={cfg.get('current_repo')} repos={derived.get('repos')}")
+    return JSONResponse(derived)
 
 
 @app.post("/api/launcher/config")
@@ -572,7 +574,9 @@ def api_save_launcher_config(config: LauncherConfig):
         data["per_repo_branches"] = {}
 
     saved = save_config(data)
-    return JSONResponse(_derive_repos(saved))
+    derived = _derive_repos(saved)
+    _log_event(f"api_save_config: saved_repo_path={saved.get('repo_path')} current_repo={saved.get('current_repo')} repos={derived.get('repos')}")
+    return JSONResponse(derived)
 
 
 @app.post("/api/launcher/start")
