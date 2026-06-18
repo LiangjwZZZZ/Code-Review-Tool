@@ -488,10 +488,10 @@ def _detect_repos_from_manifest(root_path: str) -> list[str]:
 
     try:
         tree = ET.parse(manifest_file)
-        root = tree.getroot()
+        xml_root = tree.getroot()
 
         repos = []
-        for project in root.findall("project"):
+        for project in xml_root.findall("project"):
             path = project.get("path")
             if path:
                 repos.append(str(Path(str(root)) / path))
@@ -499,7 +499,7 @@ def _detect_repos_from_manifest(root_path: str) -> list[str]:
         # Handle <include> elements (relative to manifest dir)
         parent = manifest_file.parent
         manifests_dir = parent / "manifests"
-        for inc in root.findall("include"):
+        for inc in xml_root.findall("include"):
             inc_name = inc.get("name")
             if not inc_name:
                 continue
@@ -511,8 +511,8 @@ def _detect_repos_from_manifest(root_path: str) -> list[str]:
             if inc_path.exists():
                 try:
                     inc_tree = ET.parse(inc_path)
-                    inc_root = inc_tree.getroot()
-                    for project in inc_root.findall("project"):
+                    inc_xml_root = inc_tree.getroot()
+                    for project in inc_xml_root.findall("project"):
                         path = project.get("path")
                         if path:
                             repos.append(str(Path(str(root)) / path))
