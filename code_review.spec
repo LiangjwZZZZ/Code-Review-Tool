@@ -3,7 +3,6 @@
 # Run on Windows: pyinstaller code_review.spec
 
 from PyInstaller.utils.hooks import collect_all, collect_data_files
-from PyInstaller import Tree
 import os
 
 block_cipher = None
@@ -12,22 +11,26 @@ block_cipher = None
 uvicorn_datas, uvicorn_binaries, uvicorn_hiddenimports = collect_all('uvicorn')
 fastapi_datas, fastapi_binaries, fastapi_hiddenimports = collect_all('fastapi')
 starlette_datas, starlette_binaries, starlette_hiddenimports = collect_all('starlette')
+review_datas, review_binaries, review_hiddenimports = collect_all('review')
 
 a = Analysis(
     ['review/launcher.py'],
     pathex=['.'],
     binaries=uvicorn_binaries + fastapi_binaries + starlette_binaries,
     datas=[
-        # Bundle entire review package (ensures all .py modules are included)
-        *Tree('review', prefix='review'),
         # Bundle pre-built frontend
         ('review/web/static', 'static'),
+        # Include all review package files
+        *review_datas,
         # Include all other package data
         *uvicorn_datas,
         *fastapi_datas,
         *starlette_datas,
     ],
+    noarchive=False,
     hiddenimports=[
+        # review package auto-discovered
+        *review_hiddenimports,
         # uvicorn internals
         'uvicorn.logging',
         'uvicorn.loops',
