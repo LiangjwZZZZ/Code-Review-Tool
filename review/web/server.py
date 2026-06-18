@@ -494,10 +494,24 @@ def _detect_repos_from_manifest(root_path: str) -> list[str]:
         return []
 
     _log_event(f"manifest: parsing {manifest_file} exists={manifest_file.exists()}")
-    try:
-        tree = ET.parse(manifest_file)
-        xml_root = tree.getroot()
-        _log_event(f"manifest: xml_root tag={xml_root.tag} projects={len(xml_root.findall('project'))} includes={len(xml_root.findall('include'))}")
+    # Try manifest.xml first, fallback to manifests/default.xml (symlink issue on Windows)
+    files_to_try = [manifest_file]
+    fallback = repo_dir / "manifests" / "default.xml"
+    if fallback != manifest_file and fallback.exists():
+        files_to_try.append(fallback)
+    xml_root = None
+    for f in files_to_try:
+        try:
+            tree = ET.parse(f)
+            xml_root = tree.getroot()
+            _log_event(f"manifest: parsed {f} tag={xml_root.tag} projects={len(xml_root.findall('project'))} includes={len(xml_root.findall('include'))}")
+            break
+        except (ET.ParseError, OSError) as e:
+            _log_event(f"manifest: {f} parse failed: {e}")
+            continue
+    if xml_root is None:
+        _log_event("manifest: all manifest files failed to parse")
+        return []
 
         repos = []
         for project in xml_root.findall("project"):
@@ -531,7 +545,7 @@ def _detect_repos_from_manifest(root_path: str) -> list[str]:
         _log_event(f"manifest: detected {len(repos)} repos: {repos[:3]}")
         return sorted(set(repos))
     except (ET.ParseError, OSError) as e:
-        _log_event(f"manifest: parse error: {e}")
+        _log_event(f"manifest: include parse error: {e}")
         return []
 
 
