@@ -454,18 +454,23 @@ def api_gerrit_analyze(
 def _find_repo_root(start_path: str) -> Path | None:
     """Walk up from start_path to find a directory containing .repo/manifest.xml."""
     p = Path(start_path).resolve()
-    for _ in range(10):  # max 10 levels up
-        if (p / ".repo").is_dir():
+    _log_event(f"_find_repo_root: start={start_path} resolved={p}")
+    for i in range(10):  # max 10 levels up
+        repo_dir = p / ".repo"
+        has_repo_dir = repo_dir.is_dir()
+        if has_repo_dir:
             manifest = p / ".repo" / "manifest.xml"
+            manifest2 = p / ".repo" / "manifests" / "default.xml"
+            _log_event(f"_find_repo_root: level={i} path={p} .repo exists={has_repo_dir} manifest.xml={manifest.exists()} default.xml={manifest2.exists()}")
             if manifest.exists():
                 return p
-            manifest2 = p / ".repo" / "manifests" / "default.xml"
             if manifest2.exists():
                 return p
         parent = p.parent
         if parent == p:
             break
         p = parent
+    _log_event(f"_find_repo_root: not found from {start_path}")
     return None
 
 
@@ -476,8 +481,10 @@ def _detect_repos_from_manifest(root_path: str) -> list[str]:
     """
     root = _find_repo_root(root_path)
     if not root:
+        _log_event(f"manifest: _find_repo_root failed for {root_path}")
         return []
     repo_dir = root / ".repo"
+    _log_event(f"manifest: found root={root} repo_dir={repo_dir}")
 
     manifest_file = repo_dir / "manifest.xml"
     if not manifest_file.exists():
@@ -486,9 +493,11 @@ def _detect_repos_from_manifest(root_path: str) -> list[str]:
     if not manifest_file.exists():
         return []
 
+    _log_event(f"manifest: parsing {manifest_file} exists={manifest_file.exists()}")
     try:
         tree = ET.parse(manifest_file)
         xml_root = tree.getroot()
+        _log_event(f"manifest: xml_root tag={xml_root.tag} projects={len(xml_root.findall('project'))} includes={len(xml_root.findall('include'))}")
 
         repos = []
         for project in xml_root.findall("project"):
@@ -519,8 +528,10 @@ def _detect_repos_from_manifest(root_path: str) -> list[str]:
                 except (ET.ParseError, OSError):
                     pass
 
+        _log_event(f"manifest: detected {len(repos)} repos: {repos[:3]}")
         return sorted(set(repos))
-    except (ET.ParseError, OSError):
+    except (ET.ParseError, OSError) as e:
+        _log_event(f"manifest: parse error: {e}")
         return []
 
 
