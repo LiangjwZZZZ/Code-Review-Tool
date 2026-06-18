@@ -27,7 +27,6 @@ a = Analysis(
         *fastapi_datas,
         *starlette_datas,
     ],
-    noarchive=False,
     hiddenimports=[
         # review package auto-discovered
         *review_hiddenimports,
