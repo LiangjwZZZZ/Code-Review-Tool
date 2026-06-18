@@ -37,11 +37,42 @@ if not ARGS.serve:
         import tkinter as tk
         from tkinter import ttk, scrolledtext
     except ImportError:
-        print("错误: tkinter 不可用。请安装 python-tk 包。")
-        print("  macOS: 已预装，无需额外操作")
-        print("  Ubuntu/Debian: sudo apt install python3-tk")
-        print("  Windows: 已预装")
+        # Fallback: show error via messagebox if tkinter is partially available
+        try:
+            import tkinter.messagebox as mb
+            mb.showerror("启动错误",
+                         "tkinter 不可用。请安装 python-tk 包。\n\n"
+                         "  macOS: 已预装\n"
+                         "  Ubuntu/Debian: sudo apt install python3-tk\n"
+                         "  Windows: 已预装")
+        except Exception:
+            print("错误: tkinter 不可用。请安装 python-tk 包。")
         sys.exit(1)
+
+    # Crash logger: write unhandled exceptions to file so failures are visible
+    _crash_log = Path.home() / ".review" / "logs" / "crash.log"
+    _crash_log.parent.mkdir(parents=True, exist_ok=True)
+    import traceback as _tb
+    _orig_excepthook = sys.excepthook
+    def _crash_handler(exc_type, exc_value, exc_tb):
+        try:
+            with open(_crash_log, "a", encoding="utf-8") as _f:
+                import datetime
+                _f.write(f"\n{'='*60}\n")
+                _f.write(f"[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}] UNHANDLED EXCEPTION\n")
+                _tb.print_exception(exc_type, exc_value, exc_tb, file=_f)
+        except Exception:
+            pass
+        # Also try to show a messagebox
+        try:
+            import tkinter.messagebox as mb
+            mb.showerror("程序崩溃",
+                         f"发生未处理的异常:\n\n{exc_type.__name__}: {exc_value}\n\n"
+                         f"详细日志: {_crash_log}")
+        except Exception:
+            pass
+        _orig_excepthook(exc_type, exc_value, exc_tb)
+    sys.excepthook = _crash_handler
 
 CONFIG_FILE = Path.home() / ".review" / "config.json"
 DEFAULT_CONFIG = {
