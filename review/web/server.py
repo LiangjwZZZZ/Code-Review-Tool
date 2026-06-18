@@ -115,12 +115,14 @@ def api_commits(
             status_code=400,
         )
 
+    _log_event(f"api_commits: repo={repo} branch={branch!r} git_cmd={git_cmd}")
     result = subprocess.run(
         [git_cmd, "log", *scope, "--format=%H|%P|%s|%an|%ai"],
         capture_output=True, text=True, encoding="utf-8", cwd=repo, timeout=30, **hide_window(),
     )
     if result.returncode != 0:
         err_msg = result.stderr.strip() or "Git command failed"
+        _log_event(f"api_commits failed: {err_msg}")
         return JSONResponse(
             {"error": "invalid branch" if branch else err_msg},
             status_code=400,
