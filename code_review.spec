@@ -2,7 +2,8 @@
 # PyInstaller spec for Code Review Tool
 # Run on Windows: pyinstaller code_review.spec
 
-from PyInstaller.utils.hooks import collect_all, collect_data_files, Tree
+from PyInstaller.utils.hooks import collect_all, collect_data_files
+from PyInstaller import Tree
 import os
 
 block_cipher = None
