@@ -50,7 +50,10 @@ export async function fetchCommits(repo: string = '.', branch: string = ''): Pro
   let url = `${API_BASE}/commits?repo=${encodeURIComponent(repo)}`;
   if (branch) url += `&branch=${encodeURIComponent(branch)}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to fetch commits');
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || 'Failed to fetch commits');
+  }
   return res.json();
 }
 

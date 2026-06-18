@@ -107,22 +107,32 @@ def _call_deepseek(prompt: str) -> str:
     base_url = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
     model = os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash")
 
-    resp = httpx.post(
-        f"{base_url}/chat/completions",
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={
-            "model": model,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            "max_tokens": 2000,
-            "temperature": 0.3,
-        },
-        timeout=60,
-    )
-    resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"]
+    # Temporarily strip ALL_PROXY to avoid httpx SOCKS scheme error
+    old_all = os.environ.pop("ALL_PROXY", None)
+    old_all_lower = os.environ.pop("all_proxy", None)
+    try:
+        resp = httpx.post(
+            f"{base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                "max_tokens": 2000,
+                "temperature": 0.3,
+            },
+            timeout=60,
+            verify=False,
+        )
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
+    finally:
+        if old_all is not None:
+            os.environ["ALL_PROXY"] = old_all
+        if old_all_lower is not None:
+            os.environ["all_proxy"] = old_all_lower
 
 
 def _call_anthropic(prompt: str, api_key: str) -> str:

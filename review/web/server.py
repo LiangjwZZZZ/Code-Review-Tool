@@ -29,15 +29,17 @@ def _get_git_command() -> str:
     return cfg.get("git_path") or "git"
 
 
-def _ensure_api_key_env():
-    """Ensure API key from config is set as environment variable."""
-    cfg = load_config()
-    api_key = cfg.get("api_key", "").strip()
+def _set_api_env(cfg: dict):
+    """Set API key from config into environment for LLM review."""
+    api_type = cfg.get("api_type", "deepseek")
+    api_key = cfg.get("api_key", "")
     if api_key:
-        if cfg.get("api_type") == "anthropic":
-            os.environ["ANTHROPIC_API_KEY"] = api_key
+        if api_type == "anthropic":
+            os.environ.setdefault("ANTHROPIC_API_KEY", api_key)
         else:
-            os.environ["DEEPSEEK_API_KEY"] = api_key
+            os.environ.setdefault("DEEPSEEK_API_KEY", api_key)
+        if cfg.get("model"):
+            os.environ.setdefault("DEEPSEEK_MODEL", cfg["model"])
 
 
 def _log_event(event: str):
@@ -118,8 +120,9 @@ def api_commits(
         capture_output=True, text=True, encoding="utf-8", cwd=repo, timeout=30, **hide_window(),
     )
     if result.returncode != 0:
+        err_msg = result.stderr.strip() or "Git command failed"
         return JSONResponse(
-            {"error": "invalid branch" if branch else "not a git repository"},
+            {"error": "invalid branch" if branch else err_msg},
             status_code=400,
         )
 
@@ -165,6 +168,11 @@ def api_analyze(commit_hash: str, repo: str = Query(".", description="Repository
     """Trigger analysis for a commit."""
     from review.engine.report_generator import generate_report
     from review.store.report_store import save_report
+
+    # Inject API key from config into environment for LLM review
+    cfg = load_config()
+    if cfg.get("api_key"):
+        _set_api_env(cfg)
 
     try:
         report = generate_report(commit_hash, quick=quick, repo_path=repo)
@@ -257,6 +265,11 @@ def api_analyze_file(
     """Run LLM review on a single file's changes and update the report."""
     from review.engine.llm_reviewer import run_file_llm_review
 
+    # Inject API key from config into environment for LLM review
+    cfg = load_config()
+    if cfg.get("api_key"):
+        _set_api_env(cfg)
+
     report = load_report(commit_hash)
     if not report:
         return JSONResponse({"error": "not found"}, status_code=404)
@@ -327,6 +340,10 @@ def api_gerrit_analyze(
     cfg = load_config()
     parsed = parse_gerrit_url(gerrit_url)
 
+    # Inject API key from config into environment for LLM review
+    if cfg.get("api_key"):
+        _set_api_env(cfg)
+
     # Determine which local repo to use
     if repo:
         repo_path = repo
@@ -361,23 +378,10 @@ def api_gerrit_analyze(
 
     try:
         git_cmd = _get_git_command()
-
-        # Build fetch URL with credentials if available
-        gerrit_host = parsed["host"]
-        gerrit_username = (cfg.get("gerrit_username") or "").strip()
-        gerrit_password = (cfg.get("gerrit_password") or "").strip()
-
-        if gerrit_username and gerrit_password:
-            # Use authenticated URL for git fetch
-            fetch_url = f"https://{gerrit_username}:{gerrit_password}@{gerrit_host}/{parsed['project']}"
-        else:
-            fetch_url = f"https://{gerrit_host}/{parsed['project']}"
-
-        # git fetch with SSL verification disabled and no proxy
         fetch_result = subprocess.run(
-            [git_cmd, "fetch", "-c", "http.sslVerify=false", "-c", "http.proxy=", fetch_url, refspec],
+            [git_cmd, "fetch", "origin", refspec],
             capture_output=True, text=True, cwd=repo_path,
-            timeout=60, **hide_window(),
+            timeout=30, **hide_window(),
         )
         if fetch_result.returncode != 0:
             return JSONResponse({
@@ -443,11 +447,16 @@ def _detect_repos_from_manifest(root_path: str) -> list[str]:
 
         # Handle <include> elements (relative to manifest dir)
         parent = manifest_file.parent
+        manifests_dir = parent / "manifests"
         for inc in root.findall("include"):
             inc_name = inc.get("name")
             if not inc_name:
                 continue
+            # Try resolve relative to manifest parent dir first,
+            # then fallback to manifests/ subdirectory (repo tool convention)
             inc_path = parent / inc_name
+            if not inc_path.exists():
+                inc_path = manifests_dir / inc_name
             if inc_path.exists():
                 try:
                     inc_tree = ET.parse(inc_path)
@@ -651,9 +660,6 @@ def start_server(host: str = "127.0.0.1", port: int = 9090):
     """Start the FastAPI web server (blocking)."""
     import uvicorn
     import logging
-
-    # Ensure API key from config is set as environment variable
-    _ensure_api_key_env()
 
     log_dir_env = os.environ.get("REVIEW_LOG_DIR", "")
     if log_dir_env:
