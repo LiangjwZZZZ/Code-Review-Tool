@@ -2,7 +2,7 @@
 # PyInstaller spec for Code Review Tool
 # Run on Windows: pyinstaller code_review.spec
 
-from PyInstaller.utils.hooks import collect_all, collect_data_files
+from PyInstaller.utils.hooks import collect_all, collect_data_files, Tree
 import os
 
 block_cipher = None
@@ -17,6 +17,8 @@ a = Analysis(
     pathex=['.'],
     binaries=uvicorn_binaries + fastapi_binaries + starlette_binaries,
     datas=[
+        # Bundle entire review package (ensures all .py modules are included)
+        *Tree('review', prefix='review'),
         # Bundle pre-built frontend
         ('review/web/static', 'static'),
         # Include all other package data
