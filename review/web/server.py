@@ -513,40 +513,35 @@ def _detect_repos_from_manifest(root_path: str) -> list[str]:
         _log_event("manifest: all manifest files failed to parse")
         return []
 
-        repos = []
-        for project in xml_root.findall("project"):
-            path = project.get("path")
-            if path:
-                repos.append(str(Path(str(root)) / path))
+    repos = []
+    for project in xml_root.findall("project"):
+        path = project.get("path")
+        if path:
+            repos.append(str(Path(str(root)) / path))
 
-        # Handle <include> elements (relative to manifest dir)
-        parent = manifest_file.parent
-        manifests_dir = parent / "manifests"
-        for inc in xml_root.findall("include"):
-            inc_name = inc.get("name")
-            if not inc_name:
-                continue
-            # Try resolve relative to manifest parent dir first,
-            # then fallback to manifests/ subdirectory (repo tool convention)
-            inc_path = parent / inc_name
-            if not inc_path.exists():
-                inc_path = manifests_dir / inc_name
-            if inc_path.exists():
-                try:
-                    inc_tree = ET.parse(inc_path)
-                    inc_xml_root = inc_tree.getroot()
-                    for project in inc_xml_root.findall("project"):
-                        path = project.get("path")
-                        if path:
-                            repos.append(str(Path(str(root)) / path))
-                except (ET.ParseError, OSError):
-                    pass
+    # Handle <include> elements (relative to manifest dir)
+    parent = manifest_file.parent
+    manifests_dir = parent / "manifests"
+    for inc in xml_root.findall("include"):
+        inc_name = inc.get("name")
+        if not inc_name:
+            continue
+        inc_path = parent / inc_name
+        if not inc_path.exists():
+            inc_path = manifests_dir / inc_name
+        if inc_path.exists():
+            try:
+                inc_tree = ET.parse(inc_path)
+                inc_xml_root = inc_tree.getroot()
+                for project in inc_xml_root.findall("project"):
+                    path = project.get("path")
+                    if path:
+                        repos.append(str(Path(str(root)) / path))
+            except (ET.ParseError, OSError):
+                pass
 
-        _log_event(f"manifest: detected {len(repos)} repos: {repos[:3]}")
-        return sorted(set(repos))
-    except (ET.ParseError, OSError) as e:
-        _log_event(f"manifest: include parse error: {e}")
-        return []
+    _log_event(f"manifest: detected {len(repos)} repos: {repos[:3]}")
+    return sorted(set(repos))
 
 
 # ── Launcher API ──────────────────────────────────────────────────────────────
