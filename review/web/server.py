@@ -32,30 +32,28 @@ def _get_git_command() -> str:
 def _normalize_repo_for_git(repo: str, git_cmd: str) -> str:
     """Convert repo path to the format expected by the git executable.
 
-    Cygwin git needs /cygdrive/X/... format.
-    Native Windows git needs X:\... format.
+    Windows .exe git (including Cygwin's git.exe) needs X:\... format.
+    Only shell-based git inside Cygwin terminal understands /cygdrive/X/...
     """
-    import os
     repo = repo.strip()
     if not repo or repo == ".":
         return repo
     git_lower = git_cmd.lower().replace("\\", "/")
-    is_cygwin_git = "cygwin" in git_lower
-    # Detect current format
+    is_exe = git_lower.endswith(".exe")
     is_cygwin_path = repo.startswith("/cygdrive/")
     is_windows_path = len(repo) >= 2 and repo[1] == ":" and repo[2] in ("\\", "/")
-    if is_cygwin_git and is_windows_path:
-        # Convert E:\path → /cygdrive/e/path
-        drive = repo[0].lower()
-        rest = repo[2:].replace("\\", "/").lstrip("/")
-        return f"/cygdrive/{drive}/{rest}"
-    if not is_cygwin_git and is_cygwin_path:
-        # Convert /cygdrive/e/path → E:\path
+    # .exe git always needs Windows paths
+    if is_exe and is_cygwin_path:
         parts = repo.split("/")
         if len(parts) >= 3:
             drive = parts[2].upper()
             rest = "/".join(parts[3:])
             return f"{drive}:\\{rest}"
+    # Shell-based cygwin git needs /cygdrive paths
+    if not is_exe and is_windows_path:
+        drive = repo[0].lower()
+        rest = repo[2:].replace("\\", "/").lstrip("/")
+        return f"/cygdrive/{drive}/{rest}"
     return repo
 
 
