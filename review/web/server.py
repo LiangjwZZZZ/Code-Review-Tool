@@ -451,13 +451,33 @@ def api_gerrit_analyze(
 
 # ── Repo manifest detection ───────────────────────────────────────────────────
 
+def _find_repo_root(start_path: str) -> Path | None:
+    """Walk up from start_path to find a directory containing .repo/manifest.xml."""
+    p = Path(start_path).resolve()
+    for _ in range(10):  # max 10 levels up
+        if (p / ".repo").is_dir():
+            manifest = p / ".repo" / "manifest.xml"
+            if manifest.exists():
+                return p
+            manifest2 = p / ".repo" / "manifests" / "default.xml"
+            if manifest2.exists():
+                return p
+        parent = p.parent
+        if parent == p:
+            break
+        p = parent
+    return None
+
+
 def _detect_repos_from_manifest(root_path: str) -> list[str]:
     """Detect git repos from .repo/manifest.xml (Android repo tool format).
+    Walks up directories to find .repo/ if not at root_path.
     Returns list of full paths to each project in the manifest, or empty list.
     """
-    repo_dir = Path(root_path) / ".repo"
-    if not repo_dir.is_dir():
+    root = _find_repo_root(root_path)
+    if not root:
         return []
+    repo_dir = root / ".repo"
 
     manifest_file = repo_dir / "manifest.xml"
     if not manifest_file.exists():
@@ -474,7 +494,7 @@ def _detect_repos_from_manifest(root_path: str) -> list[str]:
         for project in root.findall("project"):
             path = project.get("path")
             if path:
-                repos.append(str(Path(root_path) / path))
+                repos.append(str(Path(str(root)) / path))
 
         # Handle <include> elements (relative to manifest dir)
         parent = manifest_file.parent
@@ -495,7 +515,7 @@ def _detect_repos_from_manifest(root_path: str) -> list[str]:
                     for project in inc_root.findall("project"):
                         path = project.get("path")
                         if path:
-                            repos.append(str(Path(root_path) / path))
+                            repos.append(str(Path(str(root)) / path))
                 except (ET.ParseError, OSError):
                     pass
 
