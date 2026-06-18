@@ -29,26 +29,33 @@ def _get_git_command() -> str:
     return cfg.get("git_path") or "git"
 
 
-def _normalize_repo_path(repo: str) -> str:
-    """Normalize repo path for cross-platform compatibility.
+def _normalize_repo_for_git(repo: str, git_cmd: str) -> str:
+    """Convert repo path to the format expected by the git executable.
 
-    On Windows, converts forward slashes to backslashes and resolves the path.
-    Also handles Cygwin-style /cygdrive/X paths.
+    Cygwin git needs /cygdrive/X/... format.
+    Native Windows git needs X:\... format.
     """
     import os
     repo = repo.strip()
     if not repo or repo == ".":
         return repo
-    # Handle Cygwin /cygdrive/X/path → X:\path
-    if os.name == "nt" and repo.startswith("/cygdrive/"):
+    git_lower = git_cmd.lower().replace("\\", "/")
+    is_cygwin_git = "cygwin" in git_lower
+    # Detect current format
+    is_cygwin_path = repo.startswith("/cygdrive/")
+    is_windows_path = len(repo) >= 2 and repo[1] == ":" and repo[2] in ("\\", "/")
+    if is_cygwin_git and is_windows_path:
+        # Convert E:\path → /cygdrive/e/path
+        drive = repo[0].lower()
+        rest = repo[2:].replace("\\", "/").lstrip("/")
+        return f"/cygdrive/{drive}/{rest}"
+    if not is_cygwin_git and is_cygwin_path:
+        # Convert /cygdrive/e/path → E:\path
         parts = repo.split("/")
         if len(parts) >= 3:
             drive = parts[2].upper()
             rest = "/".join(parts[3:])
-            repo = f"{drive}:\\{rest}"
-    # Normalize forward slashes to backslashes on Windows
-    if os.name == "nt":
-        repo = repo.replace("/", "\\")
+            return f"{drive}:\\{rest}"
     return repo
 
 
@@ -138,7 +145,7 @@ def api_commits(
             status_code=400,
         )
 
-    repo = _normalize_repo_path(repo)
+    repo = _normalize_repo_for_git(repo, git_cmd)
     _log_event(f"api_commits: repo={repo} branch={branch!r} git_cmd={git_cmd}")
     result = subprocess.run(
         [git_cmd, "log", *scope, "--format=%H|%P|%s|%an|%ai"],
