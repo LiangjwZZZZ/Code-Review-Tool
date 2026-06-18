@@ -29,6 +29,29 @@ def _get_git_command() -> str:
     return cfg.get("git_path") or "git"
 
 
+def _normalize_repo_path(repo: str) -> str:
+    """Normalize repo path for cross-platform compatibility.
+
+    On Windows, converts forward slashes to backslashes and resolves the path.
+    Also handles Cygwin-style /cygdrive/X paths.
+    """
+    import os
+    repo = repo.strip()
+    if not repo or repo == ".":
+        return repo
+    # Handle Cygwin /cygdrive/X/path → X:\path
+    if os.name == "nt" and repo.startswith("/cygdrive/"):
+        parts = repo.split("/")
+        if len(parts) >= 3:
+            drive = parts[2].upper()
+            rest = "/".join(parts[3:])
+            repo = f"{drive}:\\{rest}"
+    # Normalize forward slashes to backslashes on Windows
+    if os.name == "nt":
+        repo = repo.replace("/", "\\")
+    return repo
+
+
 def _set_api_env(cfg: dict):
     """Set API key from config into environment for LLM review."""
     api_type = cfg.get("api_type", "deepseek")
@@ -115,6 +138,7 @@ def api_commits(
             status_code=400,
         )
 
+    repo = _normalize_repo_path(repo)
     _log_event(f"api_commits: repo={repo} branch={branch!r} git_cmd={git_cmd}")
     result = subprocess.run(
         [git_cmd, "log", *scope, "--format=%H|%P|%s|%an|%ai"],
