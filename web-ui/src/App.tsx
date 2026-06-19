@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import ReportPage from './pages/ReportPage';
 import LauncherPage from './pages/LauncherPage';
 import CommitTimeline from './components/CommitTimeline';
-import { fetchCommits, triggerAnalysis, fetchLauncherConfig, saveLauncherConfig, triggerGerritAnalysis } from './api';
+import { fetchCommits, analyzeWithProgress, fetchLauncherConfig, saveLauncherConfig, triggerGerritAnalysis } from './api';
+import type { AnalyzeProgress } from './api';
 import type { CommitNode, BranchInfo } from './api';
 
 const containerStyle: React.CSSProperties = {
@@ -19,6 +20,7 @@ function TimelineView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState<Set<string>>(new Set());
+  const [progress, setProgress] = useState<Map<string, AnalyzeProgress>>(new Map());
   const [repoName, setRepoName] = useState('');
   const [globalBranch, setGlobalBranch] = useState('');
   const [perRepoBranches, setPerRepoBranches] = useState<Record<string, string>>({});
@@ -171,20 +173,42 @@ function TimelineView() {
     }
   };
 
-  const handleAnalyze = async (hash: string) => {
+  const handleAnalyze = (hash: string) => {
     setAnalyzing((prev) => new Set(prev).add(hash));
-    try {
-      await triggerAnalysis(hash, repoPath, false);
-      loadCommits(repoPath, getEffectiveBranch(repoPath));
-    } catch (e: any) {
-      alert('Analysis failed: ' + (e.message || 'unknown error'));
-    } finally {
-      setAnalyzing((prev) => {
-        const next = new Set(prev);
-        next.delete(hash);
-        return next;
-      });
-    }
+    setProgress((prev) => new Map(prev).set(hash, { stage: 'indexing', message: '开始分析...' }));
+
+    analyzeWithProgress(
+      hash,
+      repoPath,
+      false,
+      (p) => setProgress((prev) => new Map(prev).set(hash, p)),
+      (result) => {
+        setAnalyzing((prev) => {
+          const next = new Set(prev);
+          next.delete(hash);
+          return next;
+        });
+        setProgress((prev) => {
+          const next = new Map(prev);
+          next.delete(hash);
+          return next;
+        });
+        loadCommits(repoPath, getEffectiveBranch(repoPath));
+      },
+      (error) => {
+        setAnalyzing((prev) => {
+          const next = new Set(prev);
+          next.delete(hash);
+          return next;
+        });
+        setProgress((prev) => {
+          const next = new Map(prev);
+          next.delete(hash);
+          return next;
+        });
+        alert(`分析失败: ${error}`);
+      },
+    );
   };
 
   const handleViewReport = (hash: string) => {
@@ -471,6 +495,7 @@ function TimelineView() {
           onViewReport={handleViewReport}
           onAnalyze={handleAnalyze}
           analyzing={analyzing}
+          progress={progress}
         />
       )}
         </div>

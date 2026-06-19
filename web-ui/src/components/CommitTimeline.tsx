@@ -1,4 +1,4 @@
-import type { CommitNode, BranchInfo } from '../api';
+import type { CommitNode, BranchInfo, AnalyzeProgress } from '../api';
 
 interface CommitTimelineProps {
   commits: CommitNode[];
@@ -7,6 +7,7 @@ interface CommitTimelineProps {
   onViewReport: (hash: string) => void;
   onAnalyze: (hash: string) => void;
   analyzing: Set<string>;
+  progress?: Map<string, AnalyzeProgress>;
 }
 
 const BRANCH_COLORS = [
@@ -21,7 +22,7 @@ function getBranchColor(branches: BranchInfo[], branchName: string): string {
 
 export default function CommitTimeline({
   commits, branches, selectedBranch,
-  onViewReport, onAnalyze, analyzing,
+  onViewReport, onAnalyze, analyzing, progress,
 }: CommitTimelineProps) {
   const dotColor = selectedBranch ? getBranchColor(branches, selectedBranch) : '#3498db';
 
@@ -125,7 +126,9 @@ export default function CommitTimeline({
 
                   <div style={{ fontSize: 12, marginTop: 4 }}>
                     {isAnalyzing ? (
-                      <span style={{ color: '#e67e22' }}>⏳ Analyzing...</span>
+                      <span style={{ color: '#e67e22' }}>
+                        {progress?.get(c.hash)?.message || '⏳ Analyzing...'}
+                      </span>
                     ) : isAnalyzed ? (
                       <span style={{ color: '#27ae60' }}>✓ Click to view</span>
                     ) : (

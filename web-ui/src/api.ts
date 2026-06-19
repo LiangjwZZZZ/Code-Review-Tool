@@ -66,6 +66,45 @@ export async function triggerAnalysis(commitHash: string, repo: string = '.', qu
   return res.json();
 }
 
+// ── SSE Analysis ─────────────────────────────────────────────────────────────
+
+export interface AnalyzeProgress {
+  stage: 'indexing' | 'analyzing' | 'llm' | 'done' | 'error';
+  message: string;
+}
+
+export function analyzeWithProgress(
+  commitHash: string,
+  repo: string,
+  force: boolean = false,
+  onProgress: (progress: AnalyzeProgress) => void,
+  onDone: (result: { status: string; risk_level: string; commit_hash: string }) => void,
+  onError: (error: string) => void,
+): () => void {
+  const params = new URLSearchParams({ commit: commitHash, repo, force: String(force) });
+  const eventSource = new EventSource(`/api/analyze-sse?${params}`);
+
+  eventSource.addEventListener('progress', (event) => {
+    const data = JSON.parse((event as MessageEvent).data);
+    onProgress(data);
+  });
+
+  eventSource.addEventListener('done', (event) => {
+    const data = JSON.parse((event as MessageEvent).data);
+    onDone(data);
+    eventSource.close();
+  });
+
+  eventSource.addEventListener('error', (event) => {
+    const data = JSON.parse((event as MessageEvent).data);
+    onError(data.error);
+    eventSource.close();
+  });
+
+  // Return cleanup function
+  return () => eventSource.close();
+}
+
 // ── Launcher API ─────────────────────────────────────────────────────────────
 
 export interface LauncherConfigData {
