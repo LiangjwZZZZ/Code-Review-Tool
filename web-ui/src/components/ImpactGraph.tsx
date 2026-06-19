@@ -147,45 +147,14 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
     };
   }, [impacts, fileModules, findings]);
 
-  // 提示显示时禁用页面滚轮
-  useEffect(() => {
-    if (!hoveredImpact) return;
 
-    const preventScroll = (e: WheelEvent) => {
-      e.preventDefault();
-    };
-
-    // 禁用页面滚轮
-    document.addEventListener('wheel', preventScroll, { passive: false });
-
-    return () => {
-      document.removeEventListener('wheel', preventScroll);
-    };
-  }, [hoveredImpact]);
-
-  // 提示内容拖拽滚动
-  const handleTooltipMouseDown = (e: React.MouseEvent) => {
+  // 提示内容滚轮滚动
+  const handleTooltipWheel = (e: React.WheelEvent) => {
     if (!tooltipRef.current) return;
-    e.preventDefault(); // 防止选中文本
-    isDraggingRef.current = true;
-    dragStartYRef.current = e.clientY;
-    scrollTopRef.current = tooltipRef.current.scrollTop;
-
-    // 添加全局事件监听
-    const handleMouseMove = (me: MouseEvent) => {
-      if (!isDraggingRef.current || !tooltipRef.current) return;
-      const deltaY = dragStartYRef.current - me.clientY;
-      tooltipRef.current.scrollTop = scrollTopRef.current + deltaY;
-    };
-
-    const handleMouseUp = () => {
-      isDraggingRef.current = false;
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    e.preventDefault();
+    e.stopPropagation();
+    // 手动滚动提示内容
+    tooltipRef.current.scrollTop += e.deltaY;
   };
 
   if (impacts.length === 0) return null;
@@ -265,7 +234,7 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
             setHoveredImpact(null);
             isDraggingRef.current = false;
           }}
-          onMouseDown={handleTooltipMouseDown}
+          onWheel={handleTooltipWheel}
           style={{
             position: 'fixed',
             left: tooltipPos.x + 16,
