@@ -58,7 +58,7 @@ export default function CommunityGraph({ impacts }: CommunityGraphProps) {
           acc[`g-${i}`] = { shape: 'box', color: GROUP_COLORS[i % GROUP_COLORS.length] };
           return acc;
         }, {}),
-        interaction: { hover: true, zoomView: false },
+        interaction: { hover: true, zoomView: true },
       },
     );
 
