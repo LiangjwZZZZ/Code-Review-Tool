@@ -6,7 +6,6 @@ import OverviewCard from '../components/OverviewCard';
 import FileChangeList from '../components/FileChangeList';
 import ImpactGraph from '../components/ImpactGraph';
 import ReviewDetails from '../components/ReviewDetails';
-import CommunityGraph from '../components/CommunityGraph';
 
 const containerStyle: React.CSSProperties = {
   maxWidth: 1000,
@@ -322,7 +321,6 @@ export default function ReportPage({ commitHash, repoPathParam = '' }: { commitH
             impacts={report.impacts}
             findings={report.findings}
           />
-          {report.impacts.length > 1 && <CommunityGraph impacts={report.impacts} />}
 
           {crossModuleImpacts.length > 0 && <CrossModuleCard crossModuleImpacts={crossModuleImpacts} />}
 
