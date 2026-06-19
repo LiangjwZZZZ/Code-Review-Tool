@@ -76,6 +76,10 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [isTooltipHovered, setIsTooltipHovered] = useState(false);
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
+  const dragStartYRef = useRef(0);
+  const scrollTopRef = useRef(0);
 
   useEffect(() => {
     if (!containerRef.current || impacts.length === 0) return;
@@ -143,6 +147,40 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
     };
   }, [impacts, fileModules, findings]);
 
+  // 提示显示时禁用页面滚轮
+  useEffect(() => {
+    if (!hoveredImpact) return;
+
+    const preventScroll = (e: WheelEvent) => {
+      e.preventDefault();
+    };
+
+    // 禁用页面滚轮
+    document.addEventListener('wheel', preventScroll, { passive: false });
+
+    return () => {
+      document.removeEventListener('wheel', preventScroll);
+    };
+  }, [hoveredImpact]);
+
+  // 提示内容拖拽滚动
+  const handleTooltipMouseDown = (e: React.MouseEvent) => {
+    if (!tooltipRef.current) return;
+    isDraggingRef.current = true;
+    dragStartYRef.current = e.clientY;
+    scrollTopRef.current = tooltipRef.current.scrollTop;
+  };
+
+  const handleTooltipMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingRef.current || !tooltipRef.current) return;
+    const deltaY = dragStartYRef.current - e.clientY;
+    tooltipRef.current.scrollTop = scrollTopRef.current + deltaY;
+  };
+
+  const handleTooltipMouseUp = () => {
+    isDraggingRef.current = false;
+  };
+
   if (impacts.length === 0) return null;
 
   // Build module color legend
@@ -207,6 +245,7 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
       {/* 自定义悬停提示 */}
       {hoveredImpact && (
         <div
+          ref={tooltipRef}
           onMouseEnter={() => {
             setIsTooltipHovered(true);
             if (hideTimeoutRef.current) {
@@ -217,11 +256,11 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
           onMouseLeave={() => {
             setIsTooltipHovered(false);
             setHoveredImpact(null);
+            isDraggingRef.current = false;
           }}
-          onWheel={(e) => {
-            // 阻止滚轮事件冒泡，只滚动提示内容
-            e.stopPropagation();
-          }}
+          onMouseDown={handleTooltipMouseDown}
+          onMouseMove={handleTooltipMouseMove}
+          onMouseUp={handleTooltipMouseUp}
           style={{
             position: 'fixed',
             left: tooltipPos.x + 16,
@@ -236,6 +275,8 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
             fontSize: 13,
             zIndex: 1000,
             overflowY: 'auto',
+            cursor: 'grab',
+            userSelect: 'none',
           }}
         >
           <div style={{ fontWeight: 600, marginBottom: 8, color: '#2c3e50' }}>
