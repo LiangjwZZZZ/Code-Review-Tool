@@ -1,6 +1,6 @@
-# Code Review Tool
+# Code Review Tool v1.4.0
 
-代码审查工具 — 分析 Git 提交对已有代码的潜在影响。支持 GitNexus 符号级影响分析 + LLM 语义审查，终端 CLI + Web 双输出，支持一键 Windows 打包。
+代码审查工具 — 分析 Git 提交对已有代码的潜在影响。支持混合影响分析（GitNexus + Java AST + git log）+ LLM 语义审查，终端 CLI + Web 双输出，支持一键 Windows 打包。
 
 ## 快速开始
 
@@ -14,8 +14,7 @@
 
 **依赖：**
 - Python 3.12+
-- Node.js 20+ 和 npm
-- GitNexus v1.6.4+（可选，用于符号级影响分析）
+- Node.js 20+ 和 npm（可选，用于 GitNexus）
 
 ```bash
 cd CodeReviewTool
@@ -67,14 +66,29 @@ review history
 
 | 功能 | 说明 |
 |------|------|
-| LLM 语义审查 | DeepSeek / Anthropic API，自动分析 breaking change、安全、架构、质量问题 |
-| 符号级影响分析 | GitNexus 集成，追踪函数/类的上下游调用链 |
-| 影响图 | 可视化展示变更影响范围，按 module 着色 |
-| 跨 Module 分析 | 自动解析 `settings.gradle`，高亮跨模块调用 |
-| Gerrit 集成 | 输入 Gerrit URL 自动 fetch + 分析，支持 HTTP 认证 |
-| 多仓库管理 | Android Repo 自动检测，全局/单仓库分支切换 |
-| 逐文件审查 | 按文件粒度触发 LLM 分析，避免全量审查的 token 浪费 |
-| 崩溃日志 | 未捕获异常写入 `~/.review/logs/crash.log`，方便排查 |
+| **混合影响分析** | 三层架构：GitNexus（如果可用）→ Java AST（javalang）→ git log -S，自动 fallback |
+| **Java 符号提取** | 从 diff 中精确提取修改的方法/类名，区分 `activityA.setCallback` 和 `activityB.setCallback` |
+| **影响图可视化** | 展示方法调用关系，每个被修改的方法用不同颜色，支持拖拽、缩放、悬停查看详情 |
+| **LLM 语义审查** | DeepSeek / Anthropic API，自动分析 breaking change、安全、架构、质量问题 |
+| **SQLite 缓存** | 影响分析结果缓存，重复分析秒级响应 |
+| **SSE 进度推送** | 实时显示分析进度（索引中 → 分析中 → LLM 审查中） |
+| **跨 Module 分析** | 自动解析 `settings.gradle`，高亮跨模块调用 |
+| **Gerrit 集成** | 输入 Gerrit URL 自动 fetch + 分析，支持 HTTP 认证 |
+| **多仓库管理** | Android Repo 自动检测，全局/单仓库分支切换 |
+| **逐文件审查** | 按文件粒度触发 LLM 分析，避免全量审查的 token 浪费 |
+| **崩溃日志** | 未捕获异常写入 `~/.review/logs/crash.log`，方便排查 |
+
+## 影响分析说明
+
+工具会自动选择最佳的影响分析方式：
+
+| 场景 | 分析方式 | 说明 |
+|------|----------|------|
+| GitNexus 可用 | GitNexus CLI | 最完整的影响分析 |
+| GitNexus 不可用 + Node.js | javalang AST | 解析 Java 源码，精确识别调用关系 |
+| 以上都不可用 | git log -S | 查找历史修改记录 |
+
+**首次分析**会建立索引，后续分析会使用缓存，速度更快。
 
 ## 配置
 
@@ -106,4 +120,28 @@ build_exe.bat
 - **后端：** Python / FastAPI / uvicorn
 - **前端：** React / TypeScript / Vite
 - **打包：** PyInstaller（Windows exe）
-- **分析：** GitNexus + DeepSeek / Anthropic LLM
+- **分析：** GitNexus + javalang + git log + DeepSeek / Anthropic LLM
+- **缓存：** SQLite
+
+## 更新日志
+
+### v1.4.0 (2026-06-19)
+
+**新增功能：**
+- 混合影响分析：GitNexus → javalang AST → git log -S 自动 fallback
+- Java 符号提取：从 diff 中精确提取修改的方法/类名
+- 影响图可视化：展示方法调用关系，支持拖拽、缩放
+- 悬停详情：显示文件变更类型（新增/修改/删除）和调用方列表
+- SQLite 缓存：影响分析结果缓存，避免重复分析
+- SSE 进度推送：实时显示分析进度
+
+**改进：**
+- 影响图每个被修改的方法用不同颜色
+- 拖拽节点时关联节点跟随移动
+- 提示框支持滚轮滚动，防止页面穿透
+- 移除关联分析图，简化界面
+
+**Bug 修复：**
+- 修复影响图显示历史提交而非调用方的问题
+- 修复 Windows 打包遗漏 javalang 依赖
+- 修复提示框滚动到底部/顶部时穿透到页面的问题

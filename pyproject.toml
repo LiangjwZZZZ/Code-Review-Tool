@@ -1,7 +1,7 @@
 [project]
 name = "review-tool"
-version = "0.1.0"
-description = "Code review tool analyzing commit impact via GitNexus"
+version = "1.4.0"
+description = "Code review tool with hybrid impact analysis and LLM review"
 requires-python = ">=3.12"
 dependencies = [
     "typer>=0.12",
