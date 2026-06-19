@@ -121,86 +121,15 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
       setHoveredImpact(null);
     });
 
-    // 拖拽时带动关联节点
-    let dragNodeId: string | null = null;
-    let dragStartPositions: Map<string, { x: number; y: number }> = new Map();
-    let lastDragPos: { x: number; y: number } | null = null;
-
-    // 获取所有连接到指定节点的子节点
-    const getConnectedChildren = (nodeId: string): string[] => {
-      const children: string[] = [];
-      edgesDataSet.forEach((edge: any) => {
-        if (edge.from === nodeId) {
-          children.push(edge.to);
-        }
-      });
-      return children;
-    };
-
-    network.on('dragStart', (params: any) => {
-      dragNodeId = params.node;
-      if (!dragNodeId) return;
-
-      // 只有被修改的方法节点（非 aff- 前缀）才带动子节点
-      if (dragNodeId.startsWith('aff-')) return;
-
-      const children = getConnectedChildren(dragNodeId);
-      if (children.length === 0) return;
-
-      // 记录所有节点的初始位置
-      dragStartPositions.clear();
-      const allNodeIds = [dragNodeId, ...children];
-      const positions = (network as any).getPositions(allNodeIds);
-      allNodeIds.forEach(nodeId => {
-        if (positions[nodeId]) {
-          dragStartPositions.set(nodeId, { ...positions[nodeId] });
-        }
-      });
-
-      lastDragPos = positions[dragNodeId] || null;
-    });
-
-    network.on('dragging', (params: any) => {
-      if (!dragNodeId || dragStartPositions.size === 0 || !lastDragPos) return;
-
-      // 获取被拖拽节点的当前位置
-      const currentPos = (network as any).getPositions([dragNodeId])[dragNodeId];
-      if (!currentPos) return;
-
-      // 计算位移
-      const deltaX = currentPos.x - lastDragPos.x;
-      const deltaY = currentPos.y - lastDragPos.y;
-
-      // 如果没有移动，不更新
-      if (Math.abs(deltaX) < 0.1 && Math.abs(deltaY) < 0.1) return;
-
-      // 更新 lastDragPos
-      lastDragPos = currentPos;
-
-      // 获取所有子节点并更新位置
-      const children = getConnectedChildren(dragNodeId);
-      const updates: Array<{ id: string; x: number; y: number }> = [];
-
-      children.forEach(childId => {
-        const childPos = (network as any).getPositions([childId])[childId];
-        if (childPos) {
-          updates.push({
-            id: childId,
-            x: childPos.x + deltaX,
-            y: childPos.y + deltaY,
-          });
-        }
-      });
-
-      if (updates.length > 0) {
-        nodesDataSet.update(updates);
-      }
+    // 拖拽时带动关联节点 - 使用物理引擎
+    network.on('dragStart', () => {
+      // 拖拽开始时临时开启物理引擎，让节点自然跟随
+      network.setOptions({ physics: { enabled: true, stabilization: false } });
     });
 
     network.on('dragEnd', () => {
-      dragNodeId = null;
-      dragStartPositions.clear();
-      lastDragPos = null;
+      // 拖拽结束后关闭物理引擎
+      network.setOptions({ physics: { enabled: false } });
     });
 
     networkRef.current = network;
