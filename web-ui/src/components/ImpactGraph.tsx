@@ -166,6 +166,7 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
   // 提示内容拖拽滚动
   const handleTooltipMouseDown = (e: React.MouseEvent) => {
     if (!tooltipRef.current) return;
+    e.preventDefault(); // 防止选中文本
     isDraggingRef.current = true;
     dragStartYRef.current = e.clientY;
     scrollTopRef.current = tooltipRef.current.scrollTop;
