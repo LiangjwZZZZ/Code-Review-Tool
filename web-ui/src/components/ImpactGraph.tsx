@@ -170,16 +170,22 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
     isDraggingRef.current = true;
     dragStartYRef.current = e.clientY;
     scrollTopRef.current = tooltipRef.current.scrollTop;
-  };
 
-  const handleTooltipMouseMove = (e: React.MouseEvent) => {
-    if (!isDraggingRef.current || !tooltipRef.current) return;
-    const deltaY = dragStartYRef.current - e.clientY;
-    tooltipRef.current.scrollTop = scrollTopRef.current + deltaY;
-  };
+    // 添加全局事件监听
+    const handleMouseMove = (me: MouseEvent) => {
+      if (!isDraggingRef.current || !tooltipRef.current) return;
+      const deltaY = dragStartYRef.current - me.clientY;
+      tooltipRef.current.scrollTop = scrollTopRef.current + deltaY;
+    };
 
-  const handleTooltipMouseUp = () => {
-    isDraggingRef.current = false;
+    const handleMouseUp = () => {
+      isDraggingRef.current = false;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
   };
 
   if (impacts.length === 0) return null;
@@ -260,8 +266,6 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
             isDraggingRef.current = false;
           }}
           onMouseDown={handleTooltipMouseDown}
-          onMouseMove={handleTooltipMouseMove}
-          onMouseUp={handleTooltipMouseUp}
           style={{
             position: 'fixed',
             left: tooltipPos.x + 16,
