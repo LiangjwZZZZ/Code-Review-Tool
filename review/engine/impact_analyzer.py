@@ -1,20 +1,92 @@
 import json
 import subprocess
 import re
+import sys
+from pathlib import Path
 from typing import Optional
+
 from review.models import ImpactItem
 
 
 SUBPROCESS_TIMEOUT = 30
+GITNEXUS_INDEX_DIR = Path.home() / ".review" / "gitnexus"
 
 
-def _parse_risk(risk_str: str) -> str:
-    """Normalize risk string."""
-    risk_str = risk_str.upper().strip()
-    for valid in ("CRITICAL", "HIGH", "MEDIUM", "LOW"):
-        if valid in risk_str:
-            return valid
-    return "MEDIUM"
+def find_gitnexus_command() -> Optional[str]:
+    """Find gitnexus command based on platform.
+
+    Discovery order:
+    1. Windows: check for bundled gitnexus.exe in tool directory
+    2. All platforms: try npx gitnexus (downloads to temp)
+    3. Fallback: check PATH for gitnexus
+    """
+    # 1. Windows bundled exe
+    if sys.platform == "win32":
+        exe_path = Path(sys.executable).parent / "gitnexus.exe"
+        if exe_path.exists():
+            return str(exe_path)
+
+    # 2. Try npx (works on all platforms with Node.js)
+    try:
+        result = subprocess.run(
+            ["npx", "gitnexus", "--version"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0:
+            return "npx"
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+
+    # 3. Check PATH
+    try:
+        result = subprocess.run(
+            ["gitnexus", "--version"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return "gitnexus"
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+
+    return None
+
+
+def _build_gitnexus_cmd(base_cmd: str, args: list[str], repo_path: str) -> list[str]:
+    """Build full gitnexus command with proper arguments."""
+    if base_cmd == "npx":
+        return ["npx", "gitnexus"] + args + ["--repo", repo_path]
+    else:
+        return [base_cmd] + args + ["--repo", repo_path]
+
+
+def ensure_index(repo_path: str, force: bool = False) -> bool:
+    """Ensure gitnexus index exists for the repo.
+
+    Returns True if index is ready, False if indexing failed.
+    """
+    cmd = find_gitnexus_command()
+    if not cmd:
+        return False
+
+    repo_name = Path(repo_path).resolve().name
+    index_dir = GITNEXUS_INDEX_DIR / repo_name
+
+    # Check if index exists and is fresh
+    if not force and index_dir.exists():
+        # Index exists, assume it's valid
+        return True
+
+    # Run gitnexus analyze
+    analyze_cmd = _build_gitnexus_cmd(cmd, ["analyze"], repo_path)
+    try:
+        result = subprocess.run(
+            analyze_cmd,
+            capture_output=True, text=True,
+            timeout=300,  # 5 minutes for initial indexing
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
 
 
 def analyze_symbol(
@@ -26,12 +98,21 @@ def analyze_symbol(
 
     Returns None if the symbol isn't indexed or gitnexus fails.
     """
-    cmd = ["gitnexus", "impact", symbol, "--direction", "upstream", "--repo", repo_path]
+    cmd = find_gitnexus_command()
+    if not cmd:
+        return None
+
+    args = ["impact", symbol, "--direction", "upstream"]
     if file_path:
-        cmd.extend(["--file-path", file_path])
+        args.extend(["--file-path", file_path])
+
+    full_cmd = _build_gitnexus_cmd(cmd, args, repo_path)
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=SUBPROCESS_TIMEOUT)
+        result = subprocess.run(
+            full_cmd,
+            capture_output=True, text=True, timeout=SUBPROCESS_TIMEOUT
+        )
         if result.returncode != 0:
             return None
 
@@ -78,6 +159,15 @@ def _parse_gitnexus_output(symbol: str, output: str, file_path: str) -> ImpactIt
         affected_processes=processes[:5],
         summary=output[:500],
     )
+
+
+def _parse_risk(risk_str: str) -> str:
+    """Normalize risk string."""
+    risk_str = risk_str.upper().strip()
+    for valid in ("CRITICAL", "HIGH", "MEDIUM", "LOW"):
+        if valid in risk_str:
+            return valid
+    return "MEDIUM"
 
 
 def analyze_changes(symbols: list[str], file_map: dict[str, str], repo_path: str = ".") -> list[ImpactItem]:

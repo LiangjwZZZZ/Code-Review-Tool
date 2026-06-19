@@ -39,3 +39,41 @@ def test_analyze_symbol_nonexistent():
     # Symbol 'nonexistent_symbol_xyz123' won't be indexed — expect None
     result = analyze_symbol("nonexistent_symbol_xyz123")
     assert result is None
+
+
+def test_find_gitnexus_command_windows():
+    """Test GitNexus discovery on Windows with bundled exe."""
+    from review.engine.impact_analyzer import find_gitnexus_command
+    from unittest.mock import patch, MagicMock
+    import sys
+
+    with patch('sys.platform', 'win32'), \
+         patch('pathlib.Path.exists', return_value=True), \
+         patch('subprocess.run') as mock_run:
+        mock_run.return_value = MagicMock(returncode=0, stdout="gitnexus v1.0.0")
+        cmd = find_gitnexus_command()
+        assert cmd is not None
+        assert "gitnexus.exe" in cmd or "npx" in cmd
+
+
+def test_find_gitnexus_command_linux_npx():
+    """Test GitNexus discovery on Linux using npx."""
+    from review.engine.impact_analyzer import find_gitnexus_command
+    from unittest.mock import patch, MagicMock
+
+    with patch('sys.platform', 'linux'), \
+         patch('subprocess.run') as mock_run:
+        mock_run.return_value = MagicMock(returncode=0, stdout="gitnexus v1.0.0")
+        cmd = find_gitnexus_command()
+        assert cmd is not None
+        assert "npx" in cmd or "gitnexus" in cmd
+
+
+def test_analyze_symbol_returns_none_on_failure():
+    """Test that analyze_symbol returns None when gitnexus fails."""
+    from review.engine.impact_analyzer import analyze_symbol
+    from unittest.mock import patch, MagicMock
+
+    with patch('review.engine.impact_analyzer.find_gitnexus_command', return_value=None):
+        result = analyze_symbol("myMethod", "Foo.java", "/repo")
+        assert result is None
