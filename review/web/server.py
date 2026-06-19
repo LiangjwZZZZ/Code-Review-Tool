@@ -194,6 +194,52 @@ def api_commits(
     return JSONResponse({"commits": commits, "branches": branches, "repo_name": repo_name})
 
 
+@app.get("/api/analyze-sse")
+def api_analyze_sse(
+    commit: str = Query(..., description="Commit hash"),
+    repo: str = Query(".", description="Repository path"),
+    force: bool = Query(False, description="Force re-index"),
+):
+    """SSE endpoint for analysis with progress updates."""
+    from fastapi.responses import StreamingResponse
+    from review.engine.report_generator import generate_report
+    from review.store.report_store import save_report
+    from review.engine.impact_analyzer import ensure_index, find_gitnexus_command
+
+    cfg = load_config()
+    if cfg.get("api_key"):
+        _set_api_env(cfg)
+
+    def event_stream():
+        # Stage 1: Check/Build index
+        if find_gitnexus_command():
+            yield f"event: progress\ndata: {json.dumps({'stage': 'indexing', 'message': '正在检查代码索引...'})}\n\n"
+            if not ensure_index(repo, force=force):
+                yield f"event: progress\ndata: {json.dumps({'stage': 'indexing', 'message': '正在建立代码索引...（首次较慢）'})}\n\n"
+                ensure_index(repo, force=True)
+
+        # Stage 2: Impact analysis
+        yield f"event: progress\ndata: {json.dumps({'stage': 'analyzing', 'message': '正在分析变更影响...'})}\n\n"
+
+        # Stage 3: LLM review
+        yield f"event: progress\ndata: {json.dumps({'stage': 'llm', 'message': '正在进行 AI 审查...'})}\n\n"
+
+        try:
+            report = generate_report(commit, repo_path=repo)
+            save_report(report)
+
+            # Stage 4: Done
+            yield f"event: done\ndata: {json.dumps({'status': 'ok', 'risk_level': report.risk_level, 'commit_hash': report.commit_hash})}\n\n"
+        except Exception as e:
+            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @app.post("/api/analyze/{commit_hash}")
 def api_analyze(commit_hash: str, repo: str = Query(".", description="Repository path"), quick: bool = Query(False)):
     """Trigger analysis for a commit."""
