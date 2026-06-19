@@ -87,7 +87,7 @@ export default function ImpactGraph({ impacts, fileModules }: ImpactGraphProps) 
         layout: { improvedLayout: true },
         physics: { stabilization: { iterations: 100 } },
         edges: { smooth: true },
-        interaction: { hover: true, tooltipDelay: 200 },
+        interaction: { hover: true, tooltipDelay: 200, zoomView: false },
       },
     );
 
