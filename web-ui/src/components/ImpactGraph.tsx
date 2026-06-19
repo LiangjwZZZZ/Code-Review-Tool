@@ -74,6 +74,8 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
   const [showTooltip, setShowTooltip] = useState(false);
   const [hoveredImpact, setHoveredImpact] = useState<ImpactItem | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [isTooltipHovered, setIsTooltipHovered] = useState(false);
+  const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || impacts.length === 0) return;
@@ -104,21 +106,29 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
 
     // 监听鼠标悬停事件
     network.on('hoverNode', (params) => {
+      // 清除隐藏定时器
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+        hideTimeoutRef.current = null;
+      }
+
       const nodeId = params.node;
       // 查找对应的 ImpactItem
       const impact = impacts.find(imp => imp.symbol === nodeId);
       if (impact) {
         setHoveredImpact(impact);
         // 获取鼠标位置
-        const rect = containerRef.current?.getBoundingClientRect();
-        if (rect) {
-          setTooltipPos({ x: params.event?.clientX || 0, y: params.event?.clientY || 0 });
-        }
+        setTooltipPos({ x: params.event?.clientX || 0, y: params.event?.clientY || 0 });
       }
     });
 
     network.on('blurNode', () => {
-      setHoveredImpact(null);
+      // 延迟隐藏，给鼠标移到 tooltip 的时间
+      hideTimeoutRef.current = setTimeout(() => {
+        if (!isTooltipHovered) {
+          setHoveredImpact(null);
+        }
+      }, 200);
     });
 
     // 拖拽时带动关联节点 - 使用物理引擎
@@ -203,20 +213,34 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
       />
       {/* 自定义悬停提示 */}
       {hoveredImpact && (
-        <div style={{
-          position: 'fixed',
-          left: tooltipPos.x + 16,
-          top: tooltipPos.y - 10,
-          maxWidth: 400,
-          padding: '12px 16px',
-          borderRadius: 8,
-          background: '#fff',
-          border: '1px solid #ddd',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          fontSize: 13,
-          zIndex: 1000,
-          pointerEvents: 'none',
-        }}>
+        <div
+          onMouseEnter={() => {
+            setIsTooltipHovered(true);
+            if (hideTimeoutRef.current) {
+              clearTimeout(hideTimeoutRef.current);
+              hideTimeoutRef.current = null;
+            }
+          }}
+          onMouseLeave={() => {
+            setIsTooltipHovered(false);
+            setHoveredImpact(null);
+          }}
+          style={{
+            position: 'fixed',
+            left: tooltipPos.x + 16,
+            top: tooltipPos.y - 10,
+            maxWidth: 400,
+            maxHeight: 300,
+            padding: '12px 16px',
+            borderRadius: 8,
+            background: '#fff',
+            border: '1px solid #ddd',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            fontSize: 13,
+            zIndex: 1000,
+            overflowY: 'auto',
+          }}
+        >
           <div style={{ fontWeight: 600, marginBottom: 8, color: '#2c3e50' }}>
             {hoveredImpact.symbol}
             <span style={{
