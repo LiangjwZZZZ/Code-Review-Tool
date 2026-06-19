@@ -123,3 +123,60 @@ Binary files a/icon.png and b/icon.png differ
     assert changes[0].file == "icon.png"
     assert changes[0].added == 0
     assert changes[0].removed == 0
+
+
+def test_get_changed_symbols_extracts_java_methods():
+    """Test that get_changed_symbols extracts actual Java method names from diff."""
+    from review.engine.diff_parser import get_changed_symbols, DiffChange
+
+    diff_text = """diff --git a/src/com/example/Foo.java b/src/com/example/Foo.java
+--- a/src/com/example/Foo.java
++++ b/src/com/example/Foo.java
+@@ -10,6 +10,10 @@ public class Foo {
+     public void oldMethod() {
+     }
+
++    public void newMethod(String param) {
++        return;
++    }
++
+     public static int helper(int x) {
+"""
+    changes = [DiffChange(file="src/com/example/Foo.java", added=4, removed=0, hunks=[])]
+    symbols = get_changed_symbols(changes, diff_text)
+    assert "newMethod" in symbols
+    assert "helper" not in symbols  # helper 没被修改
+
+
+def test_get_changed_symbols_extracts_class_name():
+    """Test that get_changed_symbols extracts class name when class declaration is modified."""
+    from review.engine.diff_parser import get_changed_symbols, DiffChange
+
+    diff_text = """diff --git a/src/com/example/Bar.java b/src/com/example/Bar.java
+--- a/src/com/example/Bar.java
++++ b/src/com/example/Bar.java
+@@ -5,7 +5,7 @@
+- public class Bar {
++ public class Bar extends BaseActivity {
+"""
+    changes = [DiffChange(file="src/com/example/Bar.java", added=1, removed=1, hunks=[])]
+    symbols = get_changed_symbols(changes, diff_text)
+    assert "Bar" in symbols
+
+
+def test_get_changed_symbols_no_duplicates():
+    """Test that duplicate symbols are removed."""
+    from review.engine.diff_parser import get_changed_symbols, DiffChange
+
+    diff_text = """diff --git a/src/com/example/Foo.java b/src/com/example/Foo.java
+--- a/src/com/example/Foo.java
++++ b/src/com/example/Foo.java
+@@ -10,6 +10,8 @@
++    public void doSomething() {
++    }
++    public void doSomething(int x) {
++    }
+"""
+    changes = [DiffChange(file="src/com/example/Foo.java", added=4, removed=0, hunks=[])]
+    symbols = get_changed_symbols(changes, diff_text)
+    assert symbols.count("doSomething") == 1
