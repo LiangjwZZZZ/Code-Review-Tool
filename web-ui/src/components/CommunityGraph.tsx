@@ -54,6 +54,7 @@ export default function CommunityGraph({ impacts }: CommunityGraphProps) {
       {
         layout: { improvedLayout: true },
         physics: { stabilization: { iterations: 100 } },
+        edges: { smooth: false },
         groups: impacts.reduce<Record<string, { shape: string; color: string }>>((acc, _, i) => {
           acc[`g-${i}`] = { shape: 'box', color: GROUP_COLORS[i % GROUP_COLORS.length] };
           return acc;

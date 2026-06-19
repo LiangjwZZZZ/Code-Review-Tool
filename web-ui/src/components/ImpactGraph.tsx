@@ -57,7 +57,7 @@ function buildGraph(impacts: ImpactItem[], fileModules?: Record<string, string>)
           label: aff,
           color: '#85c1e9',
           title: `Affected: ${aff}`,
-          shape: 'ellipse',
+          shape: 'box',
         });
       }
       edges.push({ from: item.symbol, to: affId, color: '#7f8c8d' });
@@ -86,7 +86,7 @@ export default function ImpactGraph({ impacts, fileModules }: ImpactGraphProps) 
       {
         layout: { improvedLayout: true },
         physics: { stabilization: { iterations: 100 } },
-        edges: { smooth: true },
+        edges: { smooth: false },
         interaction: { hover: true, tooltipDelay: 200, zoomView: true },
       },
     );
@@ -137,7 +137,7 @@ export default function ImpactGraph({ impacts, fileModules }: ImpactGraphProps) 
               background: '#333', color: '#fff', fontSize: 12, whiteSpace: 'nowrap',
               zIndex: 100, pointerEvents: 'none',
             }}>
-              展示方法之间的调用关系。方形节点是被修改的方法，椭圆节点是调用它的代码。连线表示「谁调用了谁」。颜色按模块区分。
+              展示方法之间的调用关系。节点是被修改的方法或调用它的代码，连线表示「谁调用了谁」。颜色按模块区分。
             </span>
           )}
         </span>
