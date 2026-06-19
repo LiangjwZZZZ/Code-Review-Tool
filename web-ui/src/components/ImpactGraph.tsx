@@ -93,13 +93,16 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
       { nodes: nodesDataSet, edges: edgesDataSet },
       {
         layout: { improvedLayout: true },
-        physics: { stabilization: { iterations: 100 } },
+        physics: {
+          stabilization: { iterations: 200 },
+          repulsion: { nodeDistance: 150, centralGravity: 0.1 },
+        },
         edges: { smooth: false },
         interaction: { hover: true, tooltipDelay: 200, zoomView: true },
       },
     );
 
-    // 布局稳定后关闭物理引擎，这样拖拽单个节点不会影响其他节点
+    // 布局稳定后关闭物理引擎
     network.once('stabilizationIterationsDone', () => {
       network.setOptions({ physics: { enabled: false } });
     });
@@ -131,16 +134,6 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
       }, 200);
     });
 
-    // 拖拽时带动关联节点 - 使用物理引擎
-    network.on('dragStart', () => {
-      // 拖拽开始时临时开启物理引擎，让节点自然跟随
-      network.setOptions({ physics: { enabled: true, stabilization: false } });
-    });
-
-    network.on('dragEnd', () => {
-      // 拖拽结束后关闭物理引擎
-      network.setOptions({ physics: { enabled: false } });
-    });
 
     networkRef.current = network;
 
@@ -224,6 +217,10 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
           onMouseLeave={() => {
             setIsTooltipHovered(false);
             setHoveredImpact(null);
+          }}
+          onWheel={(e) => {
+            // 阻止滚轮事件冒泡，只滚动提示内容
+            e.stopPropagation();
           }}
           style={{
             position: 'fixed',
