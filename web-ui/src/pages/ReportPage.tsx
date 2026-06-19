@@ -324,6 +324,7 @@ export default function ReportPage({ commitHash, repoPathParam = '' }: { commitH
               if (fa.module) acc[fa.file] = fa.module;
               return acc;
             }, {} as Record<string, string>)}
+            findings={report.findings}
           />
           {report.impacts.length > 1 && <CommunityGraph impacts={report.impacts} />}
 

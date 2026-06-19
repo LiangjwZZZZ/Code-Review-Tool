@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Network, type Edge } from 'vis-network';
 import { DataSet } from 'vis-data';
-import type { ImpactItem } from '../types';
+import type { ImpactItem, ReviewFinding } from '../types';
 
 interface ImpactGraphProps {
   impacts: ImpactItem[];
   fileModules?: Record<string, string>;
+  findings?: ReviewFinding[];
 }
 
 const MODULE_COLORS = [
@@ -67,10 +68,12 @@ function buildGraph(impacts: ImpactItem[], fileModules?: Record<string, string>)
   return { nodes, edges, usedModules: Object.keys(moduleColors) };
 }
 
-export default function ImpactGraph({ impacts, fileModules }: ImpactGraphProps) {
+export default function ImpactGraph({ impacts, fileModules, findings = [] }: ImpactGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const networkRef = useRef<Network | null>(null);
   const [showTooltip, setShowTooltip] = useState(false);
+  const [hoveredImpact, setHoveredImpact] = useState<ImpactItem | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     if (!containerRef.current || impacts.length === 0) return;
@@ -96,13 +99,32 @@ export default function ImpactGraph({ impacts, fileModules }: ImpactGraphProps) 
       network.setOptions({ physics: { enabled: false } });
     });
 
+    // 监听鼠标悬停事件
+    network.on('hoverNode', (params) => {
+      const nodeId = params.node;
+      // 查找对应的 ImpactItem
+      const impact = impacts.find(imp => imp.symbol === nodeId);
+      if (impact) {
+        setHoveredImpact(impact);
+        // 获取鼠标位置
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (rect) {
+          setTooltipPos({ x: params.event?.clientX || 0, y: params.event?.clientY || 0 });
+        }
+      }
+    });
+
+    network.on('blurNode', () => {
+      setHoveredImpact(null);
+    });
+
     networkRef.current = network;
 
     return () => {
       networkRef.current?.destroy();
       networkRef.current = null;
     };
-  }, [impacts, fileModules]);
+  }, [impacts, fileModules, findings]);
 
   if (impacts.length === 0) return null;
 
@@ -162,8 +184,74 @@ export default function ImpactGraph({ impacts, fileModules }: ImpactGraphProps) 
           border: '1px solid #ddd',
           borderRadius: 8,
           backgroundColor: '#fafafa',
+          position: 'relative',
         }}
       />
+      {/* 自定义悬停提示 */}
+      {hoveredImpact && (
+        <div style={{
+          position: 'fixed',
+          left: tooltipPos.x + 16,
+          top: tooltipPos.y - 10,
+          maxWidth: 400,
+          padding: '12px 16px',
+          borderRadius: 8,
+          background: '#fff',
+          border: '1px solid #ddd',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          fontSize: 13,
+          zIndex: 1000,
+          pointerEvents: 'none',
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: 8, color: '#2c3e50' }}>
+            {hoveredImpact.symbol}
+            <span style={{
+              marginLeft: 8,
+              fontSize: 11,
+              padding: '2px 6px',
+              borderRadius: 4,
+              backgroundColor: hoveredImpact.risk === 'CRITICAL' ? '#ffeef0' : hoveredImpact.risk === 'HIGH' ? '#fff3e0' : '#e8f5e9',
+              color: hoveredImpact.risk === 'CRITICAL' ? '#e74c3c' : hoveredImpact.risk === 'HIGH' ? '#f39c12' : '#27ae60',
+            }}>{hoveredImpact.risk}</span>
+          </div>
+          <div style={{ color: '#666', marginBottom: 8 }}>
+            📁 {hoveredImpact.file}
+          </div>
+
+          {/* 调用方列表 */}
+          {hoveredImpact.affected_symbols.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontWeight: 500, marginBottom: 4, color: '#555' }}>📞 调用方 ({hoveredImpact.affected_symbols.length})</div>
+              <div style={{ maxHeight: 120, overflowY: 'auto' }}>
+                {hoveredImpact.affected_symbols.slice(0, 8).map((aff, i) => (
+                  <div key={i} style={{ color: '#666', fontSize: 12, padding: '2px 0' }}>
+                    • {aff}
+                  </div>
+                ))}
+                {hoveredImpact.affected_symbols.length > 8 && (
+                  <div style={{ color: '#999', fontSize: 12 }}>
+                    ... 还有 {hoveredImpact.affected_symbols.length - 8} 个
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 相关审查意见 */}
+          {findings.length > 0 && (
+            <div>
+              <div style={{ fontWeight: 500, marginBottom: 4, color: '#555' }}>🔍 审查意见</div>
+              <div style={{ maxHeight: 100, overflowY: 'auto' }}>
+                {findings.slice(0, 3).map((f, i) => (
+                  <div key={i} style={{ fontSize: 12, padding: '2px 0', color: f.severity === 'CRITICAL' ? '#e74c3c' : f.severity === 'HIGH' ? '#f39c12' : '#666' }}>
+                    [{f.severity}] {f.message}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
