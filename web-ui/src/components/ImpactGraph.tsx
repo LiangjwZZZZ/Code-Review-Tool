@@ -245,31 +245,14 @@ export default function ImpactGraph({ impacts, findings = [] }: ImpactGraphProps
 
           {/* 调用方列表 */}
           {hoveredImpact.affected_symbols.length > 0 && (
-            <div style={{ marginBottom: 8 }}>
+            <div>
               <div style={{ fontWeight: 500, marginBottom: 4, color: '#555' }}>📞 调用方 ({hoveredImpact.affected_symbols.length})</div>
-              <div style={{ maxHeight: 120, overflowY: 'auto' }}>
+              <div style={{ maxHeight: 150, overflowY: 'auto' }}>
                 {hoveredImpact.affected_symbols.map((aff, i) => (
                   <div key={i} style={{ color: '#666', fontSize: 12, padding: '2px 0' }}>
                     • {aff}
                   </div>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {/* 相关审查意见 - 只显示与当前方法相关的 */}
-          {findings.filter(f => f.message.includes(hoveredImpact.symbol) || f.suggestion?.includes(hoveredImpact.symbol)).length > 0 && (
-            <div>
-              <div style={{ fontWeight: 500, marginBottom: 4, color: '#555' }}>🔍 审查意见</div>
-              <div style={{ maxHeight: 100, overflowY: 'auto' }}>
-                {findings
-                  .filter(f => f.message.includes(hoveredImpact.symbol) || f.suggestion?.includes(hoveredImpact.symbol))
-                  .slice(0, 3)
-                  .map((f, i) => (
-                    <div key={i} style={{ fontSize: 12, padding: '2px 0', color: f.severity === 'CRITICAL' ? '#e74c3c' : f.severity === 'HIGH' ? '#f39c12' : '#666' }}>
-                      [{f.severity}] {f.message}
-                    </div>
-                  ))}
               </div>
             </div>
           )}
