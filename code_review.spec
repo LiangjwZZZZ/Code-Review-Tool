@@ -13,6 +13,11 @@ fastapi_datas, fastapi_binaries, fastapi_hiddenimports = collect_all('fastapi')
 starlette_datas, starlette_binaries, starlette_hiddenimports = collect_all('starlette')
 review_datas, review_binaries, review_hiddenimports = collect_all('review')
 
+# Conditionally bundle gitnexus.exe if it was built by build_exe.bat
+gitnexus_datas = []
+if os.path.exists('bundled_gitnexus.exe'):
+    gitnexus_datas = [('bundled_gitnexus.exe', 'gitnexus.exe')]
+
 a = Analysis(
     ['review/launcher.py'],
     pathex=['.'],
@@ -26,6 +31,8 @@ a = Analysis(
         *uvicorn_datas,
         *fastapi_datas,
         *starlette_datas,
+        # Include gitnexus.exe if available (symbol-level impact analysis)
+        *gitnexus_datas,
     ],
     hiddenimports=[
         # review package auto-discovered
