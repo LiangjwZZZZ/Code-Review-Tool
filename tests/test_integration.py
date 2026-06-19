@@ -1,5 +1,7 @@
 """Integration tests for the review tool end-to-end pipeline."""
 
+import builtins
+import io
 import json
 import subprocess
 from pathlib import Path
@@ -311,3 +313,125 @@ class TestCliIntegration:
         runner = CliRunner()
         result = runner.invoke(cli_app, ["check", "deadbeef0000000000000000", "--quick"])
         assert result.exit_code != 0 or "error" in result.output.lower()
+
+
+# ── Java Symbol Extraction End-to-End ──────────────────────────────────────
+
+
+def test_full_analysis_with_java_symbols():
+    """Test complete analysis flow: Java symbol extraction -> GitNexus (unavailable) -> report.
+
+    Verifies that the full pipeline works end-to-end:
+    1. Mocked git operations provide commit info, diff, and parsed changes
+    2. Java symbol extraction reads the actual file content via builtins.open
+    3. Symbols are extracted correctly (newMethod from the diff)
+    4. Impact analysis receives the extracted symbols (GitNexus unavailable -> empty impacts)
+    5. Report is generated with all fields populated
+    """
+    # Mock Java file content — this is the AFTER version of the file (with newMethod added)
+    java_file_content = """\
+public class Foo {
+    public void oldMethod() {
+    }
+
+    public void newMethod(String param) {
+        return;
+    }
+
+    public static int helper(int x) {
+        return x * 2;
+    }
+}
+"""
+
+    mock_info = {
+        "hash": "abc123",
+        "message": "test commit",
+        "author": "test",
+        "time": "2026-01-01",
+    }
+
+    # Diff showing newMethod added between oldMethod and helper.
+    # The hunk line numbers must match the actual file content so that
+    # _collect_modified_lines produces positions within newMethod's range.
+    mock_diff = (
+        "diff --git a/src/Foo.java b/src/Foo.java\n"
+        "--- a/src/Foo.java\n"
+        "+++ b/src/Foo.java\n"
+        "@@ -2,7 +2,11 @@\n"
+        "     public void oldMethod() {\n"
+        "     }\n"
+        " \n"
+        "+    public void newMethod(String param) {\n"
+        "+        return;\n"
+        "+    }\n"
+        "+\n"
+        "     public static int helper(int x) {\n"
+        "         return x * 2;\n"
+        "     }\n"
+        " }\n"
+    )
+
+    mock_changes = [
+        DiffChange(file="src/Foo.java", added=4, removed=0, hunks=["@@ -2,7 +2,11 @@"])
+    ]
+
+    # Capture symbols passed to analyze_changes to verify extraction worked
+    captured_symbols = []
+
+    def mock_analyze_changes(symbols, file_map, repo_path="."):
+        captured_symbols.extend(symbols)
+        return []
+
+    # Only return Java file content for Foo.java; fail for everything else
+    # so that detect_modules (and similar) see "file not found" as expected.
+    def smart_open(path, *args, **kwargs):
+        if str(path) == "src/Foo.java":
+            return io.StringIO(java_file_content)
+        raise FileNotFoundError(f"No such file: {path}")
+
+    with (
+        patch("review.engine.report_generator.get_commit_info", return_value=mock_info),
+        patch("review.engine.report_generator.get_diff", return_value=mock_diff),
+        patch("review.engine.report_generator.parse_diff", return_value=mock_changes),
+        patch("review.engine.report_generator.detect_modules", return_value=[]),
+        patch("builtins.open", side_effect=smart_open),
+        patch(
+            "review.engine.report_generator.analyze_changes",
+            side_effect=mock_analyze_changes,
+        ),
+    ):
+        report = generate_report("abc123", quick=True)
+
+        # ── Report metadata ──
+        assert report.commit_hash == "abc123"
+        assert report.commit_message == "test commit"
+        assert report.author == "test"
+
+        # ── Changes parsed ──
+        assert len(report.changes) == 1
+        assert report.changes[0].file == "src/Foo.java"
+        assert report.changes[0].added == 4
+        assert report.changes[0].removed == 0
+
+        # ── Java symbol extraction ──
+        # The pipeline should have extracted "newMethod" (and possibly "Foo")
+        # from the Java file content via builtins.open -> _extract_java_symbols
+        assert "newMethod" in captured_symbols, (
+            f"Expected 'newMethod' in extracted symbols, got: {captured_symbols}"
+        )
+        assert len(captured_symbols) >= 1
+
+        # ── File analyses built ──
+        assert len(report.file_analyses) == 1
+        fa = report.file_analyses[0]
+        assert fa.file == "src/Foo.java"
+        assert len(fa.diff_text) > 0
+
+        # ── Impact analysis received symbols (empty because GitNexus unavailable) ──
+        assert len(report.impacts) == 0
+
+        # ── Risk and summary ──
+        assert report.risk_level == "LOW"  # No impacts, no findings in quick mode
+        assert len(report.summary) > 0
+        assert report.created_at is not None
