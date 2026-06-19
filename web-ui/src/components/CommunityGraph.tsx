@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Network, type Edge } from 'vis-network';
 import { DataSet } from 'vis-data';
 import type { ImpactItem } from '../types';
@@ -14,9 +14,14 @@ const GROUP_COLORS = [
 
 export default function CommunityGraph({ impacts }: CommunityGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const networkRef = useRef<Network | null>(null);
+  const [showTooltip, setShowTooltip] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current || impacts.length === 0) return;
+
+    // 如果已经初始化过，不重新创建
+    if (networkRef.current) return;
 
     const nodes: Array<{ id: string; label: string; color: string; group: string }> = [];
     const edges: Edge[] = [];
@@ -43,7 +48,7 @@ export default function CommunityGraph({ impacts }: CommunityGraphProps) {
       });
     });
 
-    const network = new Network(
+    networkRef.current = new Network(
       containerRef.current,
       { nodes: new DataSet(nodes), edges: new DataSet<Edge>(edges) },
       {
@@ -57,7 +62,10 @@ export default function CommunityGraph({ impacts }: CommunityGraphProps) {
       },
     );
 
-    return () => network.destroy();
+    return () => {
+      networkRef.current?.destroy();
+      networkRef.current = null;
+    };
   }, [impacts]);
 
   if (impacts.length === 0) return null;
@@ -67,14 +75,27 @@ export default function CommunityGraph({ impacts }: CommunityGraphProps) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <h2 style={{ margin: 0 }}>关联分析</h2>
         <span
-          title="展示被修改的方法及其影响的执行流程。每种颜色代表一个被修改的方法，叶子节点是受影响的处理流程。"
+          onMouseEnter={() => setShowTooltip(true)}
+          onMouseLeave={() => setShowTooltip(false)}
           style={{
             cursor: 'help', fontSize: 14, color: '#999',
             border: '1px solid #ddd', borderRadius: '50%',
             width: 20, height: 20, display: 'inline-flex',
             alignItems: 'center', justifyContent: 'center',
+            position: 'relative',
           }}
-        >?</span>
+        >?
+          {showTooltip && (
+            <span style={{
+              position: 'absolute', left: '100%', top: '50%', transform: 'translateY(-50%)',
+              marginLeft: 8, padding: '8px 12px', borderRadius: 6,
+              background: '#333', color: '#fff', fontSize: 12, whiteSpace: 'nowrap',
+              zIndex: 100, pointerEvents: 'none',
+            }}>
+              展示被修改的方法及其影响的执行流程。每种颜色代表一个被修改的方法，叶子节点是受影响的处理流程。
+            </span>
+          )}
+        </span>
       </div>
       <p style={{ fontSize: 13, color: '#7f8c8d', marginBottom: 8 }}>
         每种颜色代表一个被修改的方法，叶子节点是受影响的执行流程。

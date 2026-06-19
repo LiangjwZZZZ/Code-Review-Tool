@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Network, type Edge } from 'vis-network';
 import { DataSet } from 'vis-data';
 import type { ImpactItem } from '../types';
@@ -70,13 +70,13 @@ function buildGraph(impacts: ImpactItem[], fileModules?: Record<string, string>)
 export default function ImpactGraph({ impacts, fileModules }: ImpactGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const networkRef = useRef<Network | null>(null);
+  const [showTooltip, setShowTooltip] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current || impacts.length === 0) return;
 
-    if (networkRef.current) {
-      networkRef.current.destroy();
-    }
+    // 如果已经初始化过，不重新创建
+    if (networkRef.current) return;
 
     const { nodes, edges, usedModules } = buildGraph(impacts, fileModules);
 
@@ -113,14 +113,27 @@ export default function ImpactGraph({ impacts, fileModules }: ImpactGraphProps) 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <h2 style={{ margin: 0 }}>影响图</h2>
         <span
-          title="展示方法之间的调用关系。方形节点是被修改的方法，椭圆节点是调用它的代码。连线表示「谁调用了谁」。颜色按模块区分。"
+          onMouseEnter={() => setShowTooltip(true)}
+          onMouseLeave={() => setShowTooltip(false)}
           style={{
             cursor: 'help', fontSize: 14, color: '#999',
             border: '1px solid #ddd', borderRadius: '50%',
             width: 20, height: 20, display: 'inline-flex',
             alignItems: 'center', justifyContent: 'center',
+            position: 'relative',
           }}
-        >?</span>
+        >?
+          {showTooltip && (
+            <span style={{
+              position: 'absolute', left: '100%', top: '50%', transform: 'translateY(-50%)',
+              marginLeft: 8, padding: '8px 12px', borderRadius: 6,
+              background: '#333', color: '#fff', fontSize: 12, whiteSpace: 'nowrap',
+              zIndex: 100, pointerEvents: 'none',
+            }}>
+              展示方法之间的调用关系。方形节点是被修改的方法，椭圆节点是调用它的代码。连线表示「谁调用了谁」。颜色按模块区分。
+            </span>
+          )}
+        </span>
       </div>
       <div style={{ marginBottom: 8, display: 'flex', gap: 16, fontSize: 13, flexWrap: 'wrap' }}>
         {Object.keys(moduleColors).length > 0 && (
