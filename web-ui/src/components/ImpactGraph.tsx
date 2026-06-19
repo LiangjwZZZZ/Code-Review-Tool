@@ -110,7 +110,18 @@ export default function ImpactGraph({ impacts, fileModules }: ImpactGraphProps) 
 
   return (
     <div style={{ marginTop: 32 }}>
-      <h2 style={{ marginBottom: 8 }}>Impact Graph</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <h2 style={{ margin: 0 }}>影响图</h2>
+        <span
+          title="展示方法之间的调用关系。方形节点是被修改的方法，椭圆节点是调用它的代码。连线表示「谁调用了谁」。颜色按模块区分。"
+          style={{
+            cursor: 'help', fontSize: 14, color: '#999',
+            border: '1px solid #ddd', borderRadius: '50%',
+            width: 20, height: 20, display: 'inline-flex',
+            alignItems: 'center', justifyContent: 'center',
+          }}
+        >?</span>
+      </div>
       <div style={{ marginBottom: 8, display: 'flex', gap: 16, fontSize: 13, flexWrap: 'wrap' }}>
         {Object.keys(moduleColors).length > 0 && (
           <>
@@ -120,7 +131,8 @@ export default function ImpactGraph({ impacts, fileModules }: ImpactGraphProps) 
             <span style={{ color: '#999' }}>|</span>
           </>
         )}
-        <span><span style={{ color: '#85c1e9' }}>●</span> Affected</span>
+        <span><span style={{ color: '#e74c3c' }}>■</span> 被修改的方法</span>
+        <span><span style={{ color: '#85c1e9' }}>●</span> 调用方</span>
       </div>
       <div
         ref={containerRef}

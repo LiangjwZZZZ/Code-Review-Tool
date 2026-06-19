@@ -337,7 +337,7 @@ export default function ReportPage({ commitHash, repoPathParam = '' }: { commitH
           />
 
           <div style={{ marginTop: 32 }}>
-            <a href={`/api/reports/${report.commit_hash}/format`} style={{ color: '#3498db' }}>View raw report</a>
+            <a href={`/api/reports/${report.commit_hash}/format`} style={{ color: '#3498db' }}>查看原始报告</a>
           </div>
         </>
       )}

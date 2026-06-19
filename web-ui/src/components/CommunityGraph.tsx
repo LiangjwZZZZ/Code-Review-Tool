@@ -64,9 +64,20 @@ export default function CommunityGraph({ impacts }: CommunityGraphProps) {
 
   return (
     <div style={{ marginTop: 32 }}>
-      <h2 style={{ marginBottom: 8 }}>Community / Process Clusters</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <h2 style={{ margin: 0 }}>关联分析</h2>
+        <span
+          title="展示被修改的方法及其影响的执行流程。每种颜色代表一个被修改的方法，叶子节点是受影响的处理流程。"
+          style={{
+            cursor: 'help', fontSize: 14, color: '#999',
+            border: '1px solid #ddd', borderRadius: '50%',
+            width: 20, height: 20, display: 'inline-flex',
+            alignItems: 'center', justifyContent: 'center',
+          }}
+        >?</span>
+      </div>
       <p style={{ fontSize: 13, color: '#7f8c8d', marginBottom: 8 }}>
-        Each group (color) represents a changed symbol. Leaf nodes are affected execution processes.
+        每种颜色代表一个被修改的方法，叶子节点是受影响的执行流程。
       </p>
       <div
         ref={containerRef}
