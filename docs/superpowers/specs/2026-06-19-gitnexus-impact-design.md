@@ -22,8 +22,10 @@
 
 修改 `review/engine/diff_parser.py` 的 `get_changed_symbols`：
 
-**输入**：`DiffChange` 列表（包含文件路径和 diff 内容）
-**输出**：符号名列表（如 `["doSomething", "Foo", "helper"]`
+**输入**：`DiffChange` 列表 + 完整 diff 文本
+**输出**：符号名列表（如 `["doSomething", "Foo", "helper"]`）
+
+**注意**：当前 `get_changed_symbols` 只接收 `DiffChange`（无 diff 内容），需要改为同时传入 diff 文本。
 
 **提取规则**：
 - 类声明：`public class Foo` → `Foo`
