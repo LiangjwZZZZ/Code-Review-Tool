@@ -118,6 +118,77 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
       setHoveredImpact(null);
     });
 
+    // 拖拽时带动关联节点
+    let dragNodeId: string | null = null;
+    let dragStartPos: { x: number; y: number } | null = null;
+    let childStartPositions: Map<string, { x: number; y: number }> = new Map();
+
+    // 获取所有连接到指定节点的子节点
+    const getConnectedChildren = (nodeId: string): string[] => {
+      const children: string[] = [];
+      edges.forEach((edge: any) => {
+        if (edge.from === nodeId) {
+          children.push(edge.to);
+        }
+      });
+      return children;
+    };
+
+    network.on('dragStart', (params: any) => {
+      dragNodeId = params.node;
+      if (!dragNodeId) return;
+
+      // 只有被修改的方法节点（非 aff- 前缀）才带动子节点
+      if (dragNodeId.startsWith('aff-')) return;
+
+      const children = getConnectedChildren(dragNodeId);
+      if (children.length === 0) return;
+
+      // 记录拖拽开始时被拖拽节点的位置
+      const pos = (network as any).getPositions([dragNodeId]);
+      dragStartPos = pos[dragNodeId] || null;
+
+      // 记录所有子节点的初始位置
+      childStartPositions.clear();
+      const allNodeIds = [dragNodeId, ...children];
+      const positions = (network as any).getPositions(allNodeIds);
+      children.forEach(childId => {
+        if (positions[childId]) {
+          childStartPositions.set(childId, positions[childId]);
+        }
+      });
+    });
+
+    network.on('dragging', (params: any) => {
+      if (!dragNodeId || !dragStartPos || childStartPositions.size === 0) return;
+
+      // 获取被拖拽节点的当前位置
+      const currentPos = (network as any).getPositions([dragNodeId])[dragNodeId];
+      if (!currentPos) return;
+
+      // 计算位移
+      const deltaX = currentPos.x - dragStartPos.x;
+      const deltaY = currentPos.y - dragStartPos.y;
+
+      // 移动所有关联节点
+      childStartPositions.forEach((startPos, childId) => {
+        const node = (network as any).body?.nodes?.[childId];
+        if (node) {
+          node.x = startPos.x + deltaX;
+          node.y = startPos.y + deltaY;
+        }
+      });
+
+      // 重新渲染
+      (network as any).redraw?.();
+    });
+
+    network.on('dragEnd', () => {
+      dragNodeId = null;
+      dragStartPos = null;
+      childStartPositions.clear();
+    });
+
     networkRef.current = network;
 
     return () => {
