@@ -5,48 +5,30 @@ import type { ImpactItem, ReviewFinding } from '../types';
 
 interface ImpactGraphProps {
   impacts: ImpactItem[];
-  fileModules?: Record<string, string>;
   findings?: ReviewFinding[];
 }
 
-const MODULE_COLORS = [
-  '#3498db', '#e74c3c', '#2ecc71', '#f39c12',
-  '#9b59b6', '#1abc9c', '#e67e22', '#34495e',
-  '#16a085', '#c0392b', '#2980b9', '#8e44ad',
+// 被修改方法的颜色（不含蓝色，蓝色是调用方）
+const METHOD_COLORS = [
+  '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6',
+  '#1abc9c', '#e67e22', '#34495e', '#16a085',
+  '#c0392b', '#8e44ad', '#d35400', '#27ae60',
 ];
 
-function getModuleColor(module: string, usedColors: Record<string, string>): string {
-  if (usedColors[module]) return usedColors[module];
-  const idx = Object.keys(usedColors).length % MODULE_COLORS.length;
-  usedColors[module] = MODULE_COLORS[idx];
-  return usedColors[module];
-}
-
-function buildGraph(impacts: ImpactItem[], fileModules?: Record<string, string>) {
+function buildGraph(impacts: ImpactItem[]) {
   const nodes: Array<{ id: string; label: string; color: string; title: string; shape: string }> = [];
   const edges: Array<{ from: string; to: string; color?: string; dashes?: boolean; width?: number }> = [];
-  const moduleColors: Record<string, string> = {};
 
-  for (const item of impacts) {
-    // Determine color: by module if available, else by risk
-    let color: string;
-    let module: string | undefined;
-    if (fileModules) {
-      module = fileModules[item.file];
-      if (module) {
-        color = getModuleColor(module, moduleColors);
-      } else {
-        color = '#95a5a6'; // unknown module
-      }
-    } else {
-      color = '#e74c3c'; // fallback: all changed nodes red
-    }
+  for (let i = 0; i < impacts.length; i++) {
+    const item = impacts[i];
+    // 每个被修改的方法用不同颜色
+    const color = METHOD_COLORS[i % METHOD_COLORS.length];
 
     nodes.push({
       id: item.symbol,
       label: `${item.symbol}\n[${item.risk}]`,
       color: color,
-      title: `${item.symbol}\n${item.file}${module ? `\nModule: ${module}` : ''}\nRisk: ${item.risk}\nKind: ${item.symbol_kind}\nDirection: ${item.direction}`,
+      title: `${item.symbol}\n${item.file}\nRisk: ${item.risk}\nKind: ${item.symbol_kind}`,
       shape: 'box',
     });
 
@@ -65,10 +47,10 @@ function buildGraph(impacts: ImpactItem[], fileModules?: Record<string, string>)
     }
   }
 
-  return { nodes, edges, usedModules: Object.keys(moduleColors) };
+  return { nodes, edges };
 }
 
-export default function ImpactGraph({ impacts, fileModules, findings = [] }: ImpactGraphProps) {
+export default function ImpactGraph({ impacts, findings = [] }: ImpactGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const networkRef = useRef<Network | null>(null);
   const [showTooltip, setShowTooltip] = useState(false);
@@ -87,7 +69,7 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
     // 如果已经初始化过，不重新创建
     if (networkRef.current) return;
 
-    const { nodes, edges, usedModules } = buildGraph(impacts, fileModules);
+    const { nodes, edges } = buildGraph(impacts);
 
     const nodesDataSet = new DataSet(nodes) as any;
     const edgesDataSet = new DataSet<Edge>(edges);
@@ -145,28 +127,30 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
       networkRef.current?.destroy();
       networkRef.current = null;
     };
-  }, [impacts, fileModules, findings]);
+  }, [impacts, findings]);
 
 
-  // 提示内容滚轮滚动
+  // 提示内容滚轮滚动（防止滚动穿透）
   const handleTooltipWheel = (e: React.WheelEvent) => {
     if (!tooltipRef.current) return;
+    const el = tooltipRef.current;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    const isAtTop = scrollTop === 0;
+    const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1;
+
+    // 如果在顶部向上滚，或在底部向下滚，阻止事件传播
+    if ((isAtTop && e.deltaY < 0) || (isAtBottom && e.deltaY > 0)) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    // 正常情况下只阻止页面滚动
     e.preventDefault();
-    e.stopPropagation();
-    // 手动滚动提示内容
-    tooltipRef.current.scrollTop += e.deltaY;
+    el.scrollTop += e.deltaY;
   };
 
   if (impacts.length === 0) return null;
-
-  // Build module color legend
-  const moduleColors: Record<string, string> = {};
-  if (fileModules) {
-    impacts.forEach(item => {
-      const m = fileModules[item.file];
-      if (m) getModuleColor(m, moduleColors);
-    });
-  }
 
   return (
     <div style={{ marginTop: 32 }}>
@@ -190,23 +174,14 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
               background: '#333', color: '#fff', fontSize: 12, whiteSpace: 'nowrap',
               zIndex: 100, pointerEvents: 'none',
             }}>
-              展示方法之间的调用关系。节点是被修改的方法或调用它的代码，连线表示「谁调用了谁」。颜色按模块区分。
+              展示方法之间的调用关系。每个被修改的方法用不同颜色，调用方用浅蓝色。连线表示「谁调用了谁」。
             </span>
           )}
         </span>
       </div>
       <div style={{ marginBottom: 8, display: 'flex', gap: 16, fontSize: 13, flexWrap: 'wrap', alignItems: 'center' }}>
-        {Object.keys(moduleColors).length > 0 ? (
-          <>
-            {Object.entries(moduleColors).map(([m, c]) => (
-              <span key={m}><span style={{ color: c }}>■</span> {m}</span>
-            ))}
-            <span style={{ color: '#999' }}>|</span>
-          </>
-        ) : (
-          <span><span style={{ color: '#e74c3c' }}>■</span> 被修改的方法</span>
-        )}
-        <span><span style={{ color: '#85c1e9' }}>●</span> 调用方</span>
+        <span><span style={{ color: '#e74c3c' }}>■</span> 被修改的方法（每种颜色一个）</span>
+        <span><span style={{ color: '#85c1e9' }}>■</span> 调用方</span>
       </div>
       <div
         ref={containerRef}
