@@ -320,6 +320,7 @@ export default function ReportPage({ commitHash, repoPathParam = '' }: { commitH
           <ImpactGraph
             impacts={report.impacts}
             findings={report.findings}
+            changes={report.changes}
           />
 
           {crossModuleImpacts.length > 0 && <CrossModuleCard crossModuleImpacts={crossModuleImpacts} />}

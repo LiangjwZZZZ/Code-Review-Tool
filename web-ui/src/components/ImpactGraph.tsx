@@ -3,9 +3,12 @@ import { Network, type Edge } from 'vis-network';
 import { DataSet } from 'vis-data';
 import type { ImpactItem, ReviewFinding } from '../types';
 
+import type { DiffChange } from '../types';
+
 interface ImpactGraphProps {
   impacts: ImpactItem[];
   findings?: ReviewFinding[];
+  changes?: DiffChange[];
 }
 
 // 被修改方法的颜色（不含蓝色，蓝色是调用方）
@@ -50,7 +53,16 @@ function buildGraph(impacts: ImpactItem[]) {
   return { nodes, edges };
 }
 
-export default function ImpactGraph({ impacts, findings = [] }: ImpactGraphProps) {
+// 获取文件的变更类型
+function getChangeType(file: string, changes: DiffChange[]): string {
+  const change = changes.find(c => c.file === file);
+  if (!change) return '修改';
+  if (change.added > 0 && change.removed === 0) return '新增';
+  if (change.added === 0 && change.removed > 0) return '删除';
+  return '修改';
+}
+
+export default function ImpactGraph({ impacts, findings = [], changes = [] }: ImpactGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const networkRef = useRef<Network | null>(null);
   const [showTooltip, setShowTooltip] = useState(false);
@@ -238,6 +250,14 @@ export default function ImpactGraph({ impacts, findings = [] }: ImpactGraphProps
               backgroundColor: hoveredImpact.risk === 'CRITICAL' ? '#ffeef0' : hoveredImpact.risk === 'HIGH' ? '#fff3e0' : '#e8f5e9',
               color: hoveredImpact.risk === 'CRITICAL' ? '#e74c3c' : hoveredImpact.risk === 'HIGH' ? '#f39c12' : '#27ae60',
             }}>{hoveredImpact.risk}</span>
+            <span style={{
+              marginLeft: 4,
+              fontSize: 11,
+              padding: '2px 6px',
+              borderRadius: 4,
+              backgroundColor: getChangeType(hoveredImpact.file, changes) === '新增' ? '#e8f5e9' : getChangeType(hoveredImpact.file, changes) === '删除' ? '#ffeef0' : '#fff3e0',
+              color: getChangeType(hoveredImpact.file, changes) === '新增' ? '#27ae60' : getChangeType(hoveredImpact.file, changes) === '删除' ? '#e74c3c' : '#f39c12',
+            }}>{getChangeType(hoveredImpact.file, changes)}</span>
           </div>
           <div style={{ color: '#666', marginBottom: 8 }}>
             📁 {hoveredImpact.file}
