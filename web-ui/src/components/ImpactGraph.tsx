@@ -142,16 +142,17 @@ export default function ImpactGraph({ impacts, fileModules }: ImpactGraphProps) 
           )}
         </span>
       </div>
-      <div style={{ marginBottom: 8, display: 'flex', gap: 16, fontSize: 13, flexWrap: 'wrap' }}>
-        {Object.keys(moduleColors).length > 0 && (
+      <div style={{ marginBottom: 8, display: 'flex', gap: 16, fontSize: 13, flexWrap: 'wrap', alignItems: 'center' }}>
+        {Object.keys(moduleColors).length > 0 ? (
           <>
             {Object.entries(moduleColors).map(([m, c]) => (
               <span key={m}><span style={{ color: c }}>■</span> {m}</span>
             ))}
             <span style={{ color: '#999' }}>|</span>
           </>
+        ) : (
+          <span><span style={{ color: '#e74c3c' }}>■</span> 被修改的方法</span>
         )}
-        <span><span style={{ color: '#e74c3c' }}>■</span> 被修改的方法</span>
         <span><span style={{ color: '#85c1e9' }}>●</span> 调用方</span>
       </div>
       <div
