@@ -60,11 +60,13 @@ a = Analysis(
         'review.engine',
         'review.engine.diff_parser',
         'review.engine.impact_analyzer',
+        'review.engine.hybrid_impact',
         'review.engine.llm_reviewer',
         'review.engine.report_generator',
         'review.engine.module_detector',
         'review.store',
         'review.store.report_store',
+        'review.store.impact_cache',
         'review.config',
         'review.gerrit',
         'review.utils',
@@ -88,6 +90,8 @@ a = Analysis(
         'anyio._backends._trio',
         # LLM API clients
         'anthropic',
+        # Java AST parser (for hybrid impact analysis)
+        'javalang',
         # data / config
         'yaml',
         'sqlite3',
