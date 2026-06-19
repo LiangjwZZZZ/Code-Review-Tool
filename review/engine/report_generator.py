@@ -90,9 +90,9 @@ def generate_report(commit_hash: str, quick: bool = False, repo_path: str = ".")
 
     diff_text = get_diff(commit_hash, repo_path)
     changes = parse_diff(diff_text)
-    symbols = get_changed_symbols(changes)
+    symbols = get_changed_symbols(changes, diff_text)
 
-    file_map = {s: c.file for c in changes for s in get_changed_symbols([c])}
+    file_map = {s: c.file for c in changes for s in get_changed_symbols([c], diff_text)}
     impacts = analyze_changes(symbols, file_map, repo_path)
 
     from pathlib import Path
