@@ -151,21 +151,17 @@ def _merge_impacts(
 ) -> Optional[ImpactItem]:
     """合并 git 历史和 AST 分析结果"""
     affected = []
-
-    # 从 git 历史提取（显示谁修改过）
-    for g in git_impacts:
-        affected.append(f"历史修改: {g['commit']} {g['message'][:40]}")
-
-    # 从 AST 分析提取（显示谁调用了）
     call_count = 0
+
+    # 从 AST 分析提取（显示谁调用了）— 这些才是真正的调用方
     for a in ast_impacts:
         if a["type"] == "ast_call":
-            affected.append(f"调用方: {a['file']}:{a['line']} {a['qualifier']}.{symbol}()")
+            affected.append(f"{a['file']}:{a['line']} {a['qualifier']}.{symbol}()")
             call_count += 1
         elif a["type"] == "ast_definition":
-            affected.append(f"定义: {a['file']}:{a['line']}")
+            affected.append(f"{a['file']}:{a['line']} (定义)")
 
-    if not affected:
+    if not affected and not git_impacts:
         return None
 
     # 根据影响范围评估风险
@@ -178,7 +174,7 @@ def _merge_impacts(
     if symbol.startswith("test_"):
         kind = "Test"
 
-    # 构建摘要
+    # 构建摘要（包含历史信息，但不放到 affected_symbols）
     summary_parts = []
     if git_impacts:
         summary_parts.append(f"{len(git_impacts)} 次历史修改")
@@ -192,7 +188,7 @@ def _merge_impacts(
         file=file_path,
         risk=risk,
         direction="upstream",
-        affected_symbols=affected[:20],
+        affected_symbols=affected[:20],  # 只放真正的调用方
         affected_processes=[],
         summary=summary,
     )
