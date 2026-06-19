@@ -48,7 +48,7 @@ export default function CommunityGraph({ impacts }: CommunityGraphProps) {
       });
     });
 
-    networkRef.current = new Network(
+    const network = new Network(
       containerRef.current,
       { nodes: new DataSet(nodes), edges: new DataSet<Edge>(edges) },
       {
@@ -61,6 +61,13 @@ export default function CommunityGraph({ impacts }: CommunityGraphProps) {
         interaction: { hover: true, zoomView: false },
       },
     );
+
+    // 布局稳定后关闭物理引擎，这样拖拽单个节点不会影响其他节点
+    network.once('stabilizationIterationsDone', () => {
+      network.setOptions({ physics: { enabled: false } });
+    });
+
+    networkRef.current = network;
 
     return () => {
       networkRef.current?.destroy();
