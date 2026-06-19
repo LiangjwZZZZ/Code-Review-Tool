@@ -171,11 +171,39 @@ def _parse_risk(risk_str: str) -> str:
 
 
 def analyze_changes(symbols: list[str], file_map: dict[str, str], repo_path: str = ".") -> list[ImpactItem]:
-    """Analyze multiple changed symbols via gitnexus."""
-    impacts = []
+    """分析多个符号的影响
+
+    优先用 GitNexus（如果可用），不可用时用 hybrid 方案（git log -S + javalang AST）。
+    """
+    # 优先尝试 GitNexus
+    cmd = find_gitnexus_command()
+    if cmd:
+        impacts = []
+        for sym in symbols:
+            file_path = file_map.get(sym, "")
+            item = analyze_symbol(sym, file_path, repo_path)
+            if item:
+                impacts.append(item)
+        if impacts:
+            return impacts
+
+    # GitNexus 不可用，用 hybrid 方案
+    from review.engine.hybrid_impact import analyze_hybrid
+    from review.store.impact_cache import get_cached_impact, cache_impact
+
+    all_impacts = []
     for sym in symbols:
+        # 先查缓存
+        cached = get_cached_impact(sym, repo_path)
+        if cached:
+            all_impacts.extend(cached)
+            continue
+
+        # hybrid 分析
         file_path = file_map.get(sym, "")
-        item = analyze_symbol(sym, file_path, repo_path)
-        if item:
-            impacts.append(item)
-    return impacts
+        items = analyze_hybrid([sym], {sym: file_path}, repo_path)
+        if items:
+            cache_impact(sym, repo_path, items)
+            all_impacts.extend(items)
+
+    return all_impacts
