@@ -83,9 +83,12 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
 
     const { nodes, edges, usedModules } = buildGraph(impacts, fileModules);
 
+    const nodesDataSet = new DataSet(nodes) as any;
+    const edgesDataSet = new DataSet<Edge>(edges);
+
     const network = new Network(
       containerRef.current,
-      { nodes: new DataSet(nodes), edges: new DataSet<Edge>(edges) },
+      { nodes: nodesDataSet, edges: edgesDataSet },
       {
         layout: { improvedLayout: true },
         physics: { stabilization: { iterations: 100 } },
@@ -126,7 +129,7 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
     // 获取所有连接到指定节点的子节点
     const getConnectedChildren = (nodeId: string): string[] => {
       const children: string[] = [];
-      edges.forEach((edge: any) => {
+      edgesDataSet.forEach((edge: any) => {
         if (edge.from === nodeId) {
           children.push(edge.to);
         }
@@ -170,17 +173,19 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
       const deltaX = currentPos.x - dragStartPos.x;
       const deltaY = currentPos.y - dragStartPos.y;
 
-      // 移动所有关联节点
+      // 使用 DataSet 更新所有关联节点的位置
+      const updates: Array<{ id: string; x: number; y: number }> = [];
       childStartPositions.forEach((startPos, childId) => {
-        const node = (network as any).body?.nodes?.[childId];
-        if (node) {
-          node.x = startPos.x + deltaX;
-          node.y = startPos.y + deltaY;
-        }
+        updates.push({
+          id: childId,
+          x: startPos.x + deltaX,
+          y: startPos.y + deltaY,
+        });
       });
 
-      // 重新渲染
-      (network as any).redraw?.();
+      if (updates.length > 0) {
+        nodesDataSet.update(updates);
+      }
     });
 
     network.on('dragEnd', () => {
