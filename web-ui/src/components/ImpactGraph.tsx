@@ -123,8 +123,8 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
 
     // 拖拽时带动关联节点
     let dragNodeId: string | null = null;
-    let dragStartPos: { x: number; y: number } | null = null;
-    let childStartPositions: Map<string, { x: number; y: number }> = new Map();
+    let dragStartPositions: Map<string, { x: number; y: number }> = new Map();
+    let lastDragPos: { x: number; y: number } | null = null;
 
     // 获取所有连接到指定节点的子节点
     const getConnectedChildren = (nodeId: string): string[] => {
@@ -147,40 +147,49 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
       const children = getConnectedChildren(dragNodeId);
       if (children.length === 0) return;
 
-      // 记录拖拽开始时被拖拽节点的位置
-      const pos = (network as any).getPositions([dragNodeId]);
-      dragStartPos = pos[dragNodeId] || null;
-
-      // 记录所有子节点的初始位置
-      childStartPositions.clear();
+      // 记录所有节点的初始位置
+      dragStartPositions.clear();
       const allNodeIds = [dragNodeId, ...children];
       const positions = (network as any).getPositions(allNodeIds);
-      children.forEach(childId => {
-        if (positions[childId]) {
-          childStartPositions.set(childId, positions[childId]);
+      allNodeIds.forEach(nodeId => {
+        if (positions[nodeId]) {
+          dragStartPositions.set(nodeId, { ...positions[nodeId] });
         }
       });
+
+      lastDragPos = positions[dragNodeId] || null;
     });
 
     network.on('dragging', (params: any) => {
-      if (!dragNodeId || !dragStartPos || childStartPositions.size === 0) return;
+      if (!dragNodeId || dragStartPositions.size === 0 || !lastDragPos) return;
 
       // 获取被拖拽节点的当前位置
       const currentPos = (network as any).getPositions([dragNodeId])[dragNodeId];
       if (!currentPos) return;
 
       // 计算位移
-      const deltaX = currentPos.x - dragStartPos.x;
-      const deltaY = currentPos.y - dragStartPos.y;
+      const deltaX = currentPos.x - lastDragPos.x;
+      const deltaY = currentPos.y - lastDragPos.y;
 
-      // 使用 DataSet 更新所有关联节点的位置
+      // 如果没有移动，不更新
+      if (Math.abs(deltaX) < 0.1 && Math.abs(deltaY) < 0.1) return;
+
+      // 更新 lastDragPos
+      lastDragPos = currentPos;
+
+      // 获取所有子节点并更新位置
+      const children = getConnectedChildren(dragNodeId);
       const updates: Array<{ id: string; x: number; y: number }> = [];
-      childStartPositions.forEach((startPos, childId) => {
-        updates.push({
-          id: childId,
-          x: startPos.x + deltaX,
-          y: startPos.y + deltaY,
-        });
+
+      children.forEach(childId => {
+        const childPos = (network as any).getPositions([childId])[childId];
+        if (childPos) {
+          updates.push({
+            id: childId,
+            x: childPos.x + deltaX,
+            y: childPos.y + deltaY,
+          });
+        }
       });
 
       if (updates.length > 0) {
@@ -190,8 +199,8 @@ export default function ImpactGraph({ impacts, fileModules, findings = [] }: Imp
 
     network.on('dragEnd', () => {
       dragNodeId = null;
-      dragStartPos = null;
-      childStartPositions.clear();
+      dragStartPositions.clear();
+      lastDragPos = null;
     });
 
     networkRef.current = network;
