@@ -60,7 +60,7 @@ review history
 
 - **普通 Git 仓库：** 直接填仓库根目录路径（如 `/home/user/project` 或 `D:\code\my-project`）
 - **Android Repo 项目：** 填 repo 工具的根目录（包含 `.repo/manifest.xml`），自动检测所有子仓库，左侧树形侧边栏切换
-- **Windows Cygwin 用户：** 填 Windows 原生路径（如 `E:\WorkSpace\Code\WB\WB-8678`），工具会自动处理路径格式
+- **Windows Cygwin 用户：** 填 Windows 原生路径（如 `E:\WorkSpace\Code\`），工具会自动处理路径格式
 
 ## 功能特性
 
